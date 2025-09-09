@@ -1,0 +1,264 @@
+pipeline {
+    agent {
+        kubernetes {
+            label 'docker'
+            defaultContainer 'docker'
+        }
+    }
+
+    environment {
+        GIT_BRANCH = "${env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main'}"
+        STAGING = "${env.BRANCH_NAME == "main" ? "prod" : env.BRANCH_NAME == "qa" ? "qa" : "dev"}"
+        GIT_COMMITTER_EMAIL = ""  # Set git committer email
+
+        BUILD_NUMBER = "${env.BUILD_NUMBER ?: 'latest'}"
+        DOCKER_NAME = "tz-mcall-controller"
+        APP_NAME = "tz-mcall-crd"
+        DEPLOYMENT_NAME = 'tz-mcall-crd'
+        NAMESPACE = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'main' || (env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'qa' ? 'mcall-system' : 'mcall-dev'}"
+        STAGING_POSTFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'main' || (env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'qa' ? '' : '-dev'}"
+        NODE_ENV = "development"
+        HELM_CHART_PATH = "helm/mcall-crd"
+        VALUES_FILE = "values-dev.yaml"
+
+        KUBECTL = "kubectl -n ${NAMESPACE}"
+        KUBECONFIG_CREDENTIALS_ID = 'kubeconfig-jenkins'
+
+        GIT_CREDENTIAL = 'github-token'
+        GITHUP_TOKEN = credentials('GITHUP_TOKEN')
+
+        REGISTRY = ''  # Set Docker registry
+        DOCKERHUB_CREDENTIALS_ID = 'DOCKERHUB_CREDENTIALS_ID'
+
+        VAULT_TOKEN = credentials('VAULT_TOKEN')
+        ARGOCD_ID = "admin"
+        ARGOCD_PASSWORD = credentials('ARGOCD_PASSWORD')
+        DOCKER_PASSWORD = credentials('DOCKER_PASSWORD')
+
+        GOOGLE_OAUTH_CLIENT_SECRET = credentials('GOOGLE_OAUTH_CLIENT_SECRET')
+        MINIO_SECRET_KEY = credentials('MINIO_SECRET_KEY')
+        POSTGRES_PASSWORD = credentials('POSTGRES_PASSWORD')
+        OPENAI_API_KEY = credentials('OPENAI_API_KEY')
+        
+//         MYSQL_PASSWORD = credentials('MYSQL_PASSWORD')
+//         ELASTICSEARCH_PASSWORD = credentials('ELASTICSEARCH_PASSWORD')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                container('docker') {
+                    script {
+                        checkout scm
+                    }
+                }
+            }
+        }
+
+        stage('Configuration') {
+            steps {
+                dir("${workspace}"){
+                    script{
+                        echo "Setting configuration for branch: ${GIT_BRANCH}, staging: ${STAGING}"
+                        
+                        // Set values file based on branch
+                        if (env.BRANCH_NAME == "main") {
+                            env.VALUES_FILE = "values.yaml"
+                        } else if (env.BRANCH_NAME == "qa") {
+                            env.VALUES_FILE = "values-staging.yaml"
+                        } else {
+                            env.VALUES_FILE = "values-dev.yaml"
+                        }
+                        
+                        echo "Using values file: ${VALUES_FILE}"
+                    }
+                }
+            }
+        }
+
+        stage('Build & Push Image') {
+            steps {
+                container('docker') {
+                    script {
+                        try {
+                            withDockerRegistry(credentialsId: "${DOCKERHUB_CREDENTIALS_ID}", url: '') {
+                                def image = "${REGISTRY}/${DOCKER_NAME}:${BUILD_NUMBER}"
+                                
+                                // Build controller image
+                                sh "docker build -f docker/Dockerfile -t ${image} ."
+                                
+                                // Tag with latest for dev branches
+                                if (env.BRANCH_NAME != "main") {
+                                    sh "docker tag ${image} ${REGISTRY}/${DOCKER_NAME}:latest"
+                                }
+
+                                echo "Pushing image: ${image}"
+                                sh "docker push ${image}"
+                                
+                                if (env.BRANCH_NAME != "main") {
+                                    sh "docker push ${REGISTRY}/${DOCKER_NAME}:latest"
+                                }
+                            }
+                        } catch (err) {
+                            echo "Docker push failed: ${err}"
+                            error("Stopping pipeline due to push failure.")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Helm Chart Validation') {
+            steps {
+                container('kubectl') {
+                    script {
+                        try {
+                            echo "🔍 Validating Helm chart using k8s.sh..."
+                            sh '''
+                                export PATH=$PATH:.:
+                                chmod +x ci/k8s.sh
+                                ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} verify
+                            '''
+                            
+                            echo "✅ Helm chart validation passed"
+                        } catch (err) {
+                            echo "Helm chart validation failed: ${err}"
+                            error("Stopping pipeline due to chart validation failure.")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy CRDs') {
+            steps {
+                container('kubectl') {
+                    script {
+                        try {
+                            withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
+                                sh '''
+                                    export PATH=$PATH:.:
+                                    chmod +x ci/k8s.sh
+                                    echo "🚀 Starting CRD deployment..."
+                                    echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
+                                    echo "  GIT_BRANCH: ${GIT_BRANCH}"
+                                    echo "  NAMESPACE: ${NAMESPACE}"
+                                    echo "  VALUES_FILE: ${VALUES_FILE}"
+                                    ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} deploy
+                                '''
+                            }
+                        } catch (err) {
+                            echo "CRD deployment failed: ${err}"
+                            error("Stopping pipeline due to CRD deployment failure.")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Helm Chart') {
+            steps {
+                container('kubectl') {
+                    script {
+                        try {
+                            withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
+                                sh '''
+                                    export PATH=$PATH:.:
+                                    chmod +x ci/k8s.sh
+                                    echo "🚀 Starting Helm chart deployment using k8s.sh..."
+                                    echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
+                                    echo "  GIT_BRANCH: ${GIT_BRANCH}"
+                                    echo "  NAMESPACE: ${NAMESPACE}"
+                                    echo "  VALUES_FILE: ${VALUES_FILE}"
+                                    
+                                    ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} deploy
+                                    
+                                    echo "✅ Helm chart deployment completed"
+                                '''
+                            }
+                        } catch (err) {
+                            echo "Helm chart deployment failed: ${err}"
+                            error("Stopping pipeline due to Helm deployment failure.")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Post-Deployment Tests') {
+            steps {
+                container('kubectl') {
+                    script {
+                        try {
+                            withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
+                                sh '''
+                                    export PATH=$PATH:.:
+                                    chmod +x ci/k8s.sh
+                                    echo "🧪 Running post-deployment tests using k8s.sh..."
+                                    
+                                    ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} test
+                                    
+                                    echo "✅ Post-deployment tests completed"
+                                '''
+                            }
+                        } catch (err) {
+                            echo "Post-deployment tests failed: ${err}"
+                            // Don't fail the pipeline for test failures
+                            echo "⚠️  Continuing despite test failures"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            container('kubectl') {
+                script {
+                    try {
+                        withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
+                            sh '''
+                                export PATH=$PATH:.:
+                                chmod +x ci/k8s.sh
+                                echo "📊 Deployment Summary:"
+                                echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
+                                echo "  GIT_BRANCH: ${GIT_BRANCH}"
+                                echo "  NAMESPACE: ${NAMESPACE}"
+                                echo "  VALUES_FILE: ${VALUES_FILE}"
+                                echo "  STAGING_POSTFIX: ${STAGING_POSTFIX}"
+
+                                echo ""
+                                echo "=== Pod Status ==="
+                                kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=tz-mcall-crd || echo "No pods found"
+
+                                echo ""
+                                echo "=== CRD Status ==="
+                                kubectl get crd | grep mcall || echo "No CRDs found"
+
+                                echo ""
+                                echo "=== Services ==="
+                                kubectl get svc -n ${NAMESPACE} || echo "No services found"
+                            '''
+                        }
+                    } catch (err) {
+                        echo "Failed to get deployment summary: ${err}"
+                    }
+                }
+            }
+        }
+        
+        success {
+            echo "🎉 Deployment completed successfully!"
+        }
+        
+        failure {
+            echo "❌ Deployment failed!"
+        }
+        
+        cleanup {
+            // Clean up any temporary files
+            sh "rm -f ci/k8s.yaml ci/k8s.yaml.tmp ci/k8s.yaml.e || true"
+        }
+    }
+}

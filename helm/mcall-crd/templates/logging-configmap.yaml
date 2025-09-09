@@ -1,0 +1,44 @@
+{{- if .Values.logging.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-logging-config
+  namespace: {{ include "mcall-crd.namespace" . }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: logging-config
+data:
+  # Logging configuration
+  LOGGING_ENABLED: {{ .Values.logging.enabled | quote }}
+  LOGGING_BACKEND: {{ .Values.logging.backend | quote }}
+  
+  # PostgreSQL configuration
+  LOGGING_POSTGRESQL_ENABLED: {{ .Values.logging.postgresql.enabled | quote }}
+  LOGGING_POSTGRESQL_HOST: {{ .Values.logging.postgresql.host | quote }}
+  LOGGING_POSTGRESQL_PORT: {{ .Values.logging.postgresql.port | quote }}
+  LOGGING_POSTGRESQL_USERNAME: {{ .Values.logging.postgresql.username | quote }}
+  LOGGING_POSTGRESQL_DATABASE: {{ .Values.logging.postgresql.database | quote }}
+  LOGGING_POSTGRESQL_SSLMODE: {{ .Values.logging.postgresql.sslMode | quote }}
+  LOGGING_POSTGRESQL_TABLE_NAME: {{ .Values.logging.postgresql.table.name | quote }}
+  LOGGING_POSTGRESQL_TABLE_AUTOCREATE: {{ .Values.logging.postgresql.table.autoCreate | quote }}
+  
+  # MySQL configuration
+  LOGGING_MYSQL_ENABLED: {{ .Values.logging.mysql.enabled | quote }}
+  LOGGING_MYSQL_HOST: {{ .Values.logging.mysql.host | quote }}
+  LOGGING_MYSQL_PORT: {{ .Values.logging.mysql.port | quote }}
+  LOGGING_MYSQL_USERNAME: {{ .Values.logging.mysql.username | quote }}
+  LOGGING_MYSQL_DATABASE: {{ .Values.logging.mysql.database | quote }}
+  LOGGING_MYSQL_TABLE_NAME: {{ .Values.logging.mysql.table.name | quote }}
+  LOGGING_MYSQL_TABLE_AUTOCREATE: {{ .Values.logging.mysql.table.autoCreate | quote }}
+  
+  # Elasticsearch configuration
+  LOGGING_ELASTICSEARCH_ENABLED: {{ .Values.logging.elasticsearch.enabled | quote }}
+  LOGGING_ELASTICSEARCH_URL: {{ .Values.logging.elasticsearch.url | quote }}
+  LOGGING_ELASTICSEARCH_INDEX: {{ .Values.logging.elasticsearch.index | quote }}
+  LOGGING_ELASTICSEARCH_USERNAME: {{ .Values.logging.elasticsearch.username | quote }}
+  
+  # Kafka configuration
+  LOGGING_KAFKA_ENABLED: {{ .Values.logging.kafka.enabled | quote }}
+  LOGGING_KAFKA_BROKERS: {{ join "," .Values.logging.kafka.brokers | quote }}
+  LOGGING_KAFKA_TOPIC: {{ .Values.logging.kafka.topic | quote }}
+{{- end }}

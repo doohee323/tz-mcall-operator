@@ -1,0 +1,23 @@
+apiVersion: v2
+name: tz-mcall-crd
+description: A Helm chart for mcall CRD-based task execution system
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: ""  # Set project home URL
+sources:
+  - ""  # Set project source URL
+maintainers:
+  - name: Dewey Hong
+    email: ""  # Set maintainer email
+keywords:
+  - mcall
+  - task-execution
+  - crd
+  - kubernetes
+  - workflow
+annotations:
+  category: Infrastructure
+  licenses: MIT
+
+

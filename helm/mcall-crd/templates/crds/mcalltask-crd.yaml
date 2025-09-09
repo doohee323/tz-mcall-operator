@@ -1,0 +1,260 @@
+{{- if .Values.crds.install }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: mcalltasks.mcall.tz.io
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    environment: {{ .Values.environment.name | quote }}
+    crd.version: v1
+  annotations:
+    mcall.tz.io/environment: {{ .Values.environment.name | quote }}
+    mcall.tz.io/version: v1
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+spec:
+  group: mcall.tz.io
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            required:
+            - type
+            - input
+            properties:
+              type:
+                type: string
+                description: Type of request (command, HTTP GET, HTTP POST)
+                enum:
+                - cmd
+                - get
+                - post
+              input:
+                type: string
+                description: Input command or URL to execute
+              name:
+                type: string
+                description: Name identifier for this task
+              timeout:
+                type: integer
+                description: Timeout in seconds
+                minimum: 1
+                maximum: 3600
+                default: 10
+              retryCount:
+                type: integer
+                description: Number of retries on failure
+                minimum: 0
+                maximum: 10
+                default: 0
+              schedule:
+                type: string
+                description: Cron schedule for recurring tasks (optional)
+                pattern: '^(\*|(\d+|\*/\d+)(,\d+)*) (\*|(\d+|\*/\d+)(,\d+)*) (\*|(\d+|\*/\d+)(,\d+)*) (\*|(\d+|\*/\d+)(,\d+)*) (\*|(\d+|\*/\d+)(,\d+)*)$'
+              dependencies:
+                type: array
+                description: List of task names this task depends on
+                items:
+                  type: string
+              environment:
+                type: object
+                description: Environment variables for task execution
+                additionalProperties:
+                  type: string
+              resources:
+                type: object
+                description: Resource requirements for task execution
+                properties:
+                  limits:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                  requests:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+              executionMode:
+                type: string
+                description: Execution mode for multiple inputs (sequential/parallel)
+                enum:
+                - sequential
+                - parallel
+                default: sequential
+              failFast:
+                type: boolean
+                description: Fail fast on error - stop execution on first error
+                default: false
+              httpValidation:
+                type: object
+                description: HTTP response validation for GET/POST requests
+                properties:
+                  expectedStatusCodes:
+                    type: array
+                    description: Expected HTTP status codes
+                    items:
+                      type: integer
+                  expectedResponseBody:
+                    type: string
+                    description: Expected response body content
+                  responseBodyMatch:
+                    type: string
+                    description: How to match response body
+                    enum:
+                    - exact
+                    - contains
+                    - regex
+                    - json
+                    default: contains
+                  responseBodyPattern:
+                    type: string
+                    description: Regex pattern for response body matching
+                  responseHeaders:
+                    type: object
+                    description: Expected response headers
+                    additionalProperties:
+                      type: string
+                  responseTimeout:
+                    type: integer
+                    description: HTTP response timeout in seconds
+                    default: 30
+                  followRedirects:
+                    type: boolean
+                    description: Whether to follow redirects
+                    default: true
+                  maxRedirects:
+                    type: integer
+                    description: Maximum number of redirects to follow
+                    default: 3
+              outputValidation:
+                type: object
+                description: Command output validation for CMD requests
+                properties:
+                  expectedOutput:
+                    type: string
+                    description: Expected output content
+                  outputMatch:
+                    type: string
+                    description: How to match output content
+                    enum:
+                    - exact
+                    - contains
+                    - regex
+                    - json
+                    - empty
+                    default: contains
+                  outputPattern:
+                    type: string
+                    description: Regex pattern for output matching
+                  successCriteria:
+                    type: string
+                    description: Success criteria for output validation
+                    enum:
+                    - contains
+                    - exact
+                    - regex
+                    - json_match
+                    - empty
+                    - not_empty
+                    default: contains
+                  failureCriteria:
+                    type: string
+                    description: Failure criteria for output validation
+                    enum:
+                    - contains
+                    - exact
+                    - regex
+                    - json_match
+                    - empty
+                    - not_empty
+                  expectedFailureOutput:
+                    type: string
+                    description: Expected output content that indicates failure
+                  expectedLines:
+                    type: integer
+                    description: Expected number of output lines
+                  expectedJsonValue:
+                    type: string
+                    description: Expected JSON value at specified path
+                  jsonPath:
+                    type: string
+                    description: JSONPath expression for JSON validation
+                  outputTimeout:
+                    type: integer
+                    description: Output timeout in seconds
+                    default: 30
+                  caseSensitive:
+                    type: boolean
+                    description: Whether output matching is case sensitive
+                    default: false
+                  multiline:
+                    type: boolean
+                    description: Whether to support multiline output
+                    default: true
+          status:
+            type: object
+            required:
+            - phase
+            properties:
+              phase:
+                type: string
+                description: Current phase of the task
+                enum:
+                - Pending
+                - Running
+                - Succeeded
+                - Failed
+                - Skipped
+                default: Pending
+              startTime:
+                type: string
+                format: date-time
+                description: When the task started
+              completionTime:
+                type: string
+                format: date-time
+                description: When the task completed
+              result:
+                type: object
+                description: Task execution result
+                properties:
+                  output:
+                    type: string
+                    description: Task output
+                  errorCode:
+                    type: string
+                    description: Error code (0 for success, -1 for failure)
+                  errorMessage:
+                    type: string
+                    description: Error message if failed
+              retryCount:
+                type: integer
+                description: Current retry count
+              lastRetryTime:
+                type: string
+                format: date-time
+                description: Last retry attempt time
+  names:
+    kind: McallTask
+    plural: mcalltasks
+    singular: mcalltask
+    shortNames:
+    - mct
+    - mt
+  scope: Namespaced
+{{- end }}

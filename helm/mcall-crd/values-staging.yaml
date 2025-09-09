@@ -1,0 +1,132 @@
+# Staging environment values for mcall-crd
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Environment configuration
+environment:
+  name: "staging"
+  suffix: ""
+  prefix: ""
+
+# Image configuration
+image:
+  repository: ""  # Set Docker image repository
+  tag: "staging-latest"
+  pullPolicy: IfNotPresent
+
+# Controller configuration
+controller:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    LEADER_ELECTION: "true"
+    DEBUG: "false"
+    LOG_LEVEL: "info"
+  nodeSelector: {}
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: ["mcall-crd"]
+          topologyKey: kubernetes.io/hostname
+
+# Service configuration
+service:
+  metrics:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+  webhook:
+    enabled: true
+    type: ClusterIP
+    port: 443
+    targetPort: 8443
+
+# RBAC configuration
+rbac:
+  create: true
+
+# Webhook configuration
+webhook:
+  enabled: true
+  certManager:
+    enabled: true
+    issuer: "letsencrypt-staging"
+    issuerKind: "ClusterIssuer"
+    issuerGroup: "cert-manager.io"
+  validating:
+    enabled: true
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
+  mutating:
+    enabled: true
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
+
+# CRD configuration
+crds:
+  install: true
+  keep: false
+
+# Namespace configuration
+namespace:
+  create: true
+  name: mcall-staging
+  labels:
+    name: mcall-staging
+    environment: staging
+  annotations:
+    description: "Staging namespace for mcall CRD system"
+
+# Logging configuration (staging environment)
+logging:
+  enabled: true
+  backend: "postgres"
+  
+  postgresql:
+    enabled: true
+    host: "devops-postgres-postgresql.devops.svc.cluster.local"
+    port: 5432
+    username: "admin"
+    password: ""  # Set this in values-secrets.yaml
+    database: "mcall_logs_staging"
+    sslMode: "disable"
+    table:
+      name: "monitoring_logs_staging"
+      autoCreate: true
+    retention:
+      days: 14  # Medium retention for staging
+      autoCleanup: true
+  
+  mysql:
+    enabled: false
+  
+  elasticsearch:
+    enabled: false
+  
+  kafka:
+    enabled: false
+
+
+

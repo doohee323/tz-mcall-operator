@@ -1,0 +1,169 @@
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: system-info-task
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/instance: system-info
+spec:
+  type: cmd
+  input: "uname -a && df -h"
+  name: "system-info"
+  timeout: 30
+  retryCount: 2
+  environment:
+    TZ: "UTC"
+    LOG_LEVEL: "info"
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+  # Command output validation
+  outputValidation:
+    expectedOutput: "Linux"
+    outputMatch: "contains"
+    successCriteria: "contains"
+    failureCriteria: "empty"
+    caseSensitive: false
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: http-health-check
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/instance: health-check
+spec:
+  type: get
+  input: "http://localhost:8080/health"
+  name: "health-check"
+  timeout: 10
+  retryCount: 3
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  environment:
+    HTTP_TIMEOUT: "10s"
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+  # HTTP response validation
+  httpValidation:
+    expectedStatusCodes: [200, 302]
+    expectedResponseBody: "OK"
+    responseBodyMatch: "contains"
+    responseHeaders:
+      Content-Type: "application/json"
+    responseTimeout: 10
+    followRedirects: true
+    maxRedirects: 3
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: database-backup
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/instance: backup
+spec:
+  type: cmd
+  input: "pg_dump -h db.example.com -U backup_user mydb > /backup/mydb_$(date +%Y%m%d_%H%M%S).sql"
+  name: "database-backup"
+  timeout: 1800  # 30 minutes
+  retryCount: 1
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  dependencies:
+    - "system-info-task"
+  environment:
+    PGPASSWORD: ""  # Set backup password
+    BACKUP_DIR: "/backup"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  # Backup command output validation
+  outputValidation:
+    expectedOutput: "backup completed"
+    outputMatch: "contains"
+    successCriteria: "contains"
+    failureCriteria: "contains"
+    expectedFailureOutput: "error"
+    caseSensitive: false
+---
+# Version check example - telnet google.com 80
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: telnet-google-check
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/instance: telnet-check
+spec:
+  type: cmd
+  input: "telnet google.com 80"
+  name: "telnet-google-check"
+  timeout: 30
+  retryCount: 2
+  schedule: "*/5 * * * *"
+  environment:
+    TZ: "UTC"
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+  # telnet connection validation
+  outputValidation:
+    expectedOutput: "Connected"
+    outputMatch: "contains"
+    successCriteria: "contains"
+    failureCriteria: "contains"
+    expectedFailureOutput: "Connection refused"
+    caseSensitive: false
+---
+# API status check example
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: api-status-check
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/instance: api-check
+spec:
+  type: get
+  input: "http://api.example.com/status"
+  name: "api-status-check"
+  timeout: 15
+  retryCount: 3
+  schedule: "*/2 * * * *"
+  environment:
+    HTTP_TIMEOUT: "15s"
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+  # API response validation
+  httpValidation:
+    expectedStatusCodes: [200]
+    expectedResponseBody: "healthy"
+    responseBodyMatch: "contains"
+    responseHeaders:
+      Content-Type: "application/json"
+    responseTimeout: 15
+    followRedirects: true
+    maxRedirects: 2
+
+

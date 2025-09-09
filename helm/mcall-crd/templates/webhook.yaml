@@ -1,0 +1,67 @@
+{{- if and .Values.webhook.enabled .Values.webhook.validating.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionWebhook
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-validation
+  namespace: {{ include "mcall-crd.namespace" . }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+webhooks:
+- name: validation.mcall.tz.io
+  clientConfig:
+    service:
+      name: {{ include "mcall-crd.webhookServiceName" . }}
+      namespace: {{ include "mcall-crd.namespace" . }}
+      path: "/validate-mcall-tz-io-v1-mcalltask"
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["mcall.tz.io"]
+    apiVersions: ["v1"]
+    resources: ["mcalltasks"]
+  failurePolicy: {{ .Values.webhook.validating.failurePolicy }}
+  sideEffects: {{ .Values.webhook.validating.sideEffects }}
+  admissionReviewVersions: {{ .Values.webhook.validating.admissionReviewVersions | toJson }}
+{{- end }}
+---
+{{- if and .Values.webhook.enabled .Values.webhook.mutating.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionWebhook
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-mutation
+  namespace: {{ include "mcall-crd.namespace" . }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+webhooks:
+- name: mutation.mcall.tz.io
+  clientConfig:
+    service:
+      name: {{ include "mcall-crd.webhookServiceName" . }}
+      namespace: {{ include "mcall-crd.namespace" . }}
+      path: "/mutate-mcall-tz-io-v1-mcalltask"
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["mcall.tz.io"]
+    apiVersions: ["v1"]
+    resources: ["mcalltasks"]
+  failurePolicy: {{ .Values.webhook.mutating.failurePolicy }}
+  sideEffects: {{ .Values.webhook.mutating.sideEffects }}
+  admissionReviewVersions: {{ .Values.webhook.mutating.admissionReviewVersions | toJson }}
+{{- end }}
+---
+{{- if .Values.webhook.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-webhook-certs
+  namespace: {{ include "mcall-crd.namespace" . }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  {{- if .Values.webhook.certs.tlsCrt }}
+  tls.crt: {{ .Values.webhook.certs.tlsCrt }}
+  {{- end }}
+  {{- if .Values.webhook.certs.tlsKey }}
+  tls.key: {{ .Values.webhook.certs.tlsKey }}
+  {{- end }}
+{{- end }}

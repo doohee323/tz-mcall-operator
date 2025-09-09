@@ -1,0 +1,67 @@
+{{- if .Values.logging.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-postgres-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "mcall-crd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: postgres-init
+        image: postgres:15-alpine
+        env:
+        - name: PGHOST
+          value: {{ .Values.logging.postgresql.host }}
+        - name: PGPORT
+          value: {{ .Values.logging.postgresql.port | quote }}
+        - name: PGUSER
+          value: {{ .Values.logging.postgresql.username }}
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "mcall-crd.fullname" . }}-logging-secret
+              key: postgresql-password
+        - name: PGDATABASE
+          value: {{ .Values.logging.postgresql.database }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Creating database if not exists..."
+          psql -h $PGHOST -p $PGPORT -U $PGUSER -d postgres -c "CREATE DATABASE $PGDATABASE;" || echo "Database already exists"
+          
+          echo "Creating monitoring logs table..."
+          psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -c "
+          CREATE TABLE IF NOT EXISTS {{ .Values.logging.postgresql.table.name }} (
+            id SERIAL PRIMARY KEY,
+            service_name VARCHAR(255) NOT NULL,
+            service_type VARCHAR(50) NOT NULL,
+            status VARCHAR(10) NOT NULL CHECK (status IN ('UP', 'DOWN')),
+            error_message TEXT,
+            response_time_ms BIGINT,
+            timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+          
+          CREATE INDEX IF NOT EXISTS idx_{{ .Values.logging.postgresql.table.name }}_service_name ON {{ .Values.logging.postgresql.table.name }}(service_name);
+          CREATE INDEX IF NOT EXISTS idx_{{ .Values.logging.postgresql.table.name }}_timestamp ON {{ .Values.logging.postgresql.table.name }}(timestamp);
+          CREATE INDEX IF NOT EXISTS idx_{{ .Values.logging.postgresql.table.name }}_status ON {{ .Values.logging.postgresql.table.name }}(status);
+          "
+          
+          echo "PostgreSQL initialization completed successfully!"
+{{- end }}

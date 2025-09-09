@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}
+  namespace: {{ include "mcall-crd.namespace" . }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.controller.replicas }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.controller.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "mcall-crd.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mcall-crd.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "mcall-crd.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "mcall-crd.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: controller
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        image: {{ include "mcall-crd.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: metrics
+          containerPort: {{ .Values.service.metrics.port }}
+          protocol: TCP
+        - name: webhook
+          containerPort: {{ .Values.service.webhook.targetPort }}
+          protocol: TCP
+        {{- include "mcall-crd.env" . | nindent 8 }}
+        env:
+        - name: NAMESPACE
+          value: {{ include "mcall-crd.namespace" . | quote }}
+        - name: LEADER_ELECTION_NAMESPACE
+          value: {{ include "mcall-crd.namespace" . | quote }}
+        - name: LEADER_ELECTION_ID
+          value: {{ include "mcall-crd.fullname" . | quote }}
+        - name: RECONCILE_INTERVAL
+          value: {{ .Values.controller.reconcileInterval | quote }}
+        - name: TASK_TIMEOUT
+          value: {{ .Values.controller.taskTimeout | quote }}
+        {{- if .Values.logging.enabled }}
+        # Load logging configuration from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: {{ include "mcall-crd.fullname" . }}-logging-config
+        
+        # Load sensitive data from Secret
+        {{- if .Values.logging.postgresql.enabled }}
+        - secretRef:
+            name: {{ include "mcall-crd.fullname" . }}-logging-secret
+        {{- end }}
+        {{- if .Values.logging.mysql.enabled }}
+        - secretRef:
+            name: {{ include "mcall-crd.fullname" . }}-logging-secret
+        {{- end }}
+        {{- if .Values.logging.elasticsearch.enabled }}
+        - secretRef:
+            name: {{ include "mcall-crd.fullname" . }}-logging-secret
+        {{- end }}
+        {{- end }}
+        {{- include "mcall-crd.resources" . | nindent 8 }}
+        {{- include "mcall-crd.livenessProbe" . | nindent 8 }}
+        {{- include "mcall-crd.readinessProbe" . | nindent 8 }}
+        volumeMounts:
+        {{- if .Values.webhook.enabled }}
+        - name: webhook-certs
+          mountPath: /tmp/k8s-webhook-server/serving-certs
+          readOnly: true
+        {{- end }}
+        - name: logs-volume
+          mountPath: /app/log/mcall
+      volumes:
+      {{- if .Values.webhook.enabled }}
+      - name: webhook-certs
+        secret:
+          secretName: {{ include "mcall-crd.webhookCertSecretName" . }}
+      {{- end }}
+      - name: logs-volume
+        emptyDir: {}
+      {{- include "mcall-crd.nodeSelector" . | nindent 6 }}
+      {{- include "mcall-crd.affinity" . | nindent 6 }}
+      {{- include "mcall-crd.tolerations" . | nindent 6 }}
+
+

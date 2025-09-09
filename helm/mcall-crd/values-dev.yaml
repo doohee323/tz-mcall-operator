@@ -1,0 +1,136 @@
+# Development environment values for mcall-crd
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Environment configuration
+environment:
+  name: "dev"
+  suffix: ""
+  prefix: ""
+
+# Image configuration
+image:
+  repository: ""  # Set Docker image repository
+  tag: "test"
+  pullPolicy: Always
+
+# Controller configuration
+controller:
+  replicas: 1
+  # Task timeout in seconds for development (faster testing)
+  taskTimeout: 3
+  reconcileInterval: 10s
+  strategy:
+    type: Recreate
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  env:
+    LEADER_ELECTION: "false"
+    DEBUG: "true"
+    LOG_LEVEL: "debug"
+
+# Autoscaling configuration (disabled in dev)
+autoscaling:
+  enabled: false
+
+# Service configuration
+service:
+  metrics:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+  webhook:
+    enabled: false  # Disable webhooks in dev
+
+# RBAC configuration
+rbac:
+  create: true
+
+# Webhook configuration
+webhook:
+  enabled: false  # Disable webhooks in dev
+  validating:
+    enabled: false
+  mutating:
+    enabled: false
+
+# CRD configuration
+crds:
+  install: true
+  keep: false
+
+# Namespace configuration
+namespace:
+  create: true
+  name: mcall-dev
+  labels:
+    name: mcall-dev
+    environment: development
+  annotations:
+    description: "Development namespace for mcall CRD system"
+
+# Logging configuration (dev environment)
+logging:
+  enabled: true
+  backend: "postgres"
+  
+  postgresql:
+    enabled: true
+    host: "devops-postgres-postgresql.devops-dev.svc.cluster.local"
+    port: 5432
+    username: "admin"
+    password: ""  # Set this in values-secrets.yaml
+    database: "mcall_logs_dev"
+    sslMode: "disable"
+    table:
+      name: "monitoring_logs_dev"
+      autoCreate: true
+    retention:
+      days: 7  # Shorter retention in dev
+      autoCleanup: true
+  
+  mysql:
+    enabled: false
+  
+  elasticsearch:
+    enabled: false
+  
+  kafka:
+    enabled: false
+
+# Alerting configuration (dev environment)
+alerting:
+  enabled: true
+  email:
+    enabled: true
+    smtp:
+      host: ""  # Set SMTP host
+      port: 587
+      username: ""  # Set SMTP username
+      password: ""  # Set SMTP password
+      fromEmail: ""  # Set from email
+      toEmail: ""  # Set to email
+      subjectPrefix: "[DevOps Alert - DEV]"
+    conditions:
+      serviceDown: true
+      databaseDown: true
+      networkDown: false  # Disable network alerts in dev
+      threshold: 1  # Lower threshold for dev
+      cooldown: 5   # Shorter cooldown for dev
+  slack:
+    enabled: false
+
+

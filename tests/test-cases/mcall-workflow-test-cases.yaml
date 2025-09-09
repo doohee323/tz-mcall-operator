@@ -1,0 +1,1239 @@
+# McallWorkflow Test Cases
+# This file contains comprehensive test cases for the McallWorkflow CRD functionality
+
+---
+# Test Case 1: Basic Workflow without Schedule
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: basic-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Basic Task 1 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: basic-task-2
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Basic Task 2 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: basic-workflow-test
+  namespace: mcall-system
+spec:
+  tasks:
+  - name: "task1"
+    taskRef:
+      name: "basic-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "task2"
+    taskRef:
+      name: "basic-task-2"
+      namespace: "mcall-system"
+    dependencies: ["task1"]
+
+---
+# Test Case 2: Workflow with Cron Schedule
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: scheduled-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Scheduled Task 1 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: scheduled-task-2
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://us.drillquiz.com/"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: scheduled-workflow-test
+  namespace: mcall-system
+spec:
+  schedule: "*/2 * * * *"  # Every 2 minutes
+  concurrency: 2
+  timeout: 300
+  tasks:
+  - name: "scheduled-task1"
+    taskRef:
+      name: "scheduled-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "scheduled-task2"
+    taskRef:
+      name: "scheduled-task-2"
+      namespace: "mcall-system"
+    dependencies: ["scheduled-task1"]
+
+---
+# Test Case 3: Complex Dependency Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: dependency-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Dependency Task 1 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: dependency-task-2
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Dependency Task 2 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: dependency-task-3
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://us.drillquiz.com/"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: dependency-task-4
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Dependency Task 4 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: complex-dependency-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 3
+  timeout: 600
+  tasks:
+  - name: "task1"
+    taskRef:
+      name: "dependency-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "task2"
+    taskRef:
+      name: "dependency-task-2"
+      namespace: "mcall-system"
+    dependencies: ["task1"]
+  - name: "task3"
+    taskRef:
+      name: "dependency-task-3"
+      namespace: "mcall-system"
+    dependencies: ["task1"]
+  - name: "task4"
+    taskRef:
+      name: "dependency-task-4"
+      namespace: "mcall-system"
+    dependencies: ["task2", "task3"]
+
+---
+# Test Case 4: Health Check Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: health-check-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "kubectl get pods -n mcall-system | grep mcall"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: health-check-task-2
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://us.drillquiz.com/"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: health-check-task-3
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Health check completed - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: health-check-workflow-test
+  namespace: mcall-system
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  concurrency: 2
+  timeout: 180
+  retryPolicy:
+    maxRetries: 2
+    retryDelay: 30
+    backoffPolicy: "exponential"
+  tasks:
+  - name: "check-pods"
+    taskRef:
+      name: "health-check-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-external-service"
+    taskRef:
+      name: "health-check-task-2"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "report-status"
+    taskRef:
+      name: "health-check-task-3"
+      namespace: "mcall-system"
+    dependencies: ["check-pods", "check-external-service"]
+
+---
+# Test Case 5: Error Handling Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: error-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Error Task 1 - Success'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: error-task-2
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://us.drillquiz.com/api/nonexistent"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: error-task-3
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Error Task 3 - Should not execute'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: error-handling-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 1
+  timeout: 300
+  retryPolicy:
+    maxRetries: 1
+    retryDelay: 10
+    backoffPolicy: "linear"
+  tasks:
+  - name: "success-task"
+    taskRef:
+      name: "error-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "error-task"
+    taskRef:
+      name: "error-task-2"
+      namespace: "mcall-system"
+    dependencies: ["success-task"]
+  - name: "should-not-run"
+    taskRef:
+      name: "error-task-3"
+      namespace: "mcall-system"
+    dependencies: ["error-task"]
+
+---
+# Test Case 6: Mixed Task Types Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mixed-task-cmd
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Mixed Task CMD - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mixed-task-get
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://us.drillquiz.com/"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mixed-task-post
+  namespace: mcall-system
+spec:
+  type: post
+  input: "https://us.drillquiz.com/"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: mixed-task-types-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 3
+  timeout: 300
+  environment:
+    WORKFLOW_ENV: "test"
+    TASK_TIMEOUT: "30"
+  tasks:
+  - name: "cmd-task"
+    taskRef:
+      name: "mixed-task-cmd"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "get-task"
+    taskRef:
+      name: "mixed-task-get"
+      namespace: "mcall-system"
+    dependencies: ["cmd-task"]
+  - name: "post-task"
+    taskRef:
+      name: "mixed-task-post"
+      namespace: "mcall-system"
+    dependencies: ["get-task"]
+
+---
+# Test Case 7: Long Running Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: long-running-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "sleep 2 && echo 'Long Running Task 1 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: long-running-task-2
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "sleep 3 && echo 'Long Running Task 2 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: long-running-task-3
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "sleep 1 && echo 'Long Running Task 3 - $(date)'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: long-running-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 2
+  timeout: 600
+  tasks:
+  - name: "task1"
+    taskRef:
+      name: "long-running-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "task2"
+    taskRef:
+      name: "long-running-task-2"
+      namespace: "mcall-system"
+    dependencies: ["task1"]
+  - name: "task3"
+    taskRef:
+      name: "long-running-task-3"
+      namespace: "mcall-system"
+    dependencies: ["task1"]
+
+---
+# Test Case 8: Resource Intensive Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: resource-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Resource Task 1 - CPU Info:' && cat /proc/cpuinfo | grep 'model name' | head -1"
+  timeout: 30
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: resource-task-2
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Resource Task 2 - Memory Info:' && free -h"
+  timeout: 30
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: resource-intensive-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 1
+  timeout: 300
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  tasks:
+  - name: "cpu-task"
+    taskRef:
+      name: "resource-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "memory-task"
+    taskRef:
+      name: "resource-task-2"
+      namespace: "mcall-system"
+    dependencies: ["cpu-task"]
+
+---
+# Test Case 9: Validation Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: validation-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Validation Task 1 - Success'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: validation-task-2
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://us.drillquiz.com/"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: validation-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 2
+  timeout: 300
+  tasks:
+  - name: "validation-task1"
+    taskRef:
+      name: "validation-task-1"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "validation-task2"
+    taskRef:
+      name: "validation-task-2"
+      namespace: "mcall-system"
+    dependencies: ["validation-task1"]
+
+---
+# Test Case 10: Circular Dependency Test (Should Handle Gracefully)
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: circular-task-1
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Circular Task 1'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: circular-task-2
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo 'Circular Task 2'"
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: circular-dependency-workflow-test
+  namespace: mcall-system
+spec:
+  concurrency: 1
+  timeout: 300
+  tasks:
+  - name: "task1"
+    taskRef:
+      name: "circular-task-1"
+      namespace: "mcall-system"
+    dependencies: ["task2"]  # Circular dependency
+  - name: "task2"
+    taskRef:
+      name: "circular-task-2"
+      namespace: "mcall-system"
+    dependencies: ["task1"]  # Circular dependency
+
+---
+# Test Case 11: Monitoring and Alerting Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-grafana
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://grafana.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-prometheus
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://prometheus.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-alertmanager
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://alertmanager.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-argocd
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://argocd.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-vault
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://vault.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-consul
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://consul.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-kiali
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://kiali.istio-system.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-jaeger
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://jaeger.istio-system.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-jenkins
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://jenkins.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-sonarqube
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://sonarqube.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-es-elk
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://es.elk.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "401"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-kibana
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://kibana.elk.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: monitoring-task-supabase
+  namespace: mcall-system
+spec:
+  type: get
+  input: "http://supabase.default.eks-main-t.seerslab.io"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: monitoring-workflow-test
+  namespace: mcall-system
+spec:
+  schedule: "*/1 * * * *"  # Every minute
+  concurrency: 5
+  timeout: 300
+  retryPolicy:
+    maxRetries: 2
+    retryDelay: 15
+    backoffPolicy: "exponential"
+  tasks:
+  - name: "check-grafana"
+    taskRef:
+      name: "monitoring-task-grafana"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-prometheus"
+    taskRef:
+      name: "monitoring-task-prometheus"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-alertmanager"
+    taskRef:
+      name: "monitoring-task-alertmanager"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-argocd"
+    taskRef:
+      name: "monitoring-task-argocd"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-vault"
+    taskRef:
+      name: "monitoring-task-vault"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-consul"
+    taskRef:
+      name: "monitoring-task-consul"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-kiali"
+    taskRef:
+      name: "monitoring-task-kiali"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-jaeger"
+    taskRef:
+      name: "monitoring-task-jaeger"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-jenkins"
+    taskRef:
+      name: "monitoring-task-jenkins"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-sonarqube"
+    taskRef:
+      name: "monitoring-task-sonarqube"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-es-elk"
+    taskRef:
+      name: "monitoring-task-es-elk"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-kibana"
+    taskRef:
+      name: "monitoring-task-kibana"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-supabase"
+    taskRef:
+      name: "monitoring-task-supabase"
+      namespace: "mcall-system"
+    dependencies: []
+
+---
+# Test Case 12: Database Connectivity Monitoring Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-redis-hypen-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet redis.hypen-dev.hypen.ai 6379"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-redis-mc20-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet redis.mc20-dev.seerslab.io 6379"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-redis-mtown-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet redis.mtown-dev.mirrortown.io 6379"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-hypen-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.hypen-dev.hypen.ai 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-mtown-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.mtown-dev.seerslab.io 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mariadb-mtown-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mariadb.mtown-dev.seerslab.io 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-avatar-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.avatar-dev.seerslab.io 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-mc20-dev
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.mc20-dev.seerslab.io 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-mtown-dev-alt
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.mtown-dev.mirrortown.io 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-hypen
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.hypen.hypen.ai 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-redis-hypen
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet redis.hypen.hypen.ai 6379"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-mysql-mc20
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet mysql.mc20.seerslab.io 3306"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: db-task-redis-mc20
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet redis.mc20.seerslab.io 6379"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: database-monitoring-workflow-test
+  namespace: mcall-system
+spec:
+  schedule: "*/2 * * * *"  # Every 2 minutes
+  concurrency: 3
+  timeout: 180
+  retryPolicy:
+    maxRetries: 1
+    retryDelay: 10
+    backoffPolicy: "linear"
+  tasks:
+  - name: "check-redis-hypen-dev"
+    taskRef:
+      name: "db-task-redis-hypen-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-redis-mc20-dev"
+    taskRef:
+      name: "db-task-redis-mc20-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-redis-mtown-dev"
+    taskRef:
+      name: "db-task-redis-mtown-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-hypen-dev"
+    taskRef:
+      name: "db-task-mysql-hypen-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-mtown-dev"
+    taskRef:
+      name: "db-task-mysql-mtown-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mariadb-mtown-dev"
+    taskRef:
+      name: "db-task-mariadb-mtown-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-avatar-dev"
+    taskRef:
+      name: "db-task-mysql-avatar-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-mc20-dev"
+    taskRef:
+      name: "db-task-mysql-mc20-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-mtown-dev-alt"
+    taskRef:
+      name: "db-task-mysql-mtown-dev-alt"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-hypen"
+    taskRef:
+      name: "db-task-mysql-hypen"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-redis-hypen"
+    taskRef:
+      name: "db-task-redis-hypen"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-mysql-mc20"
+    taskRef:
+      name: "db-task-mysql-mc20"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-redis-mc20"
+    taskRef:
+      name: "db-task-redis-mc20"
+      namespace: "mcall-system"
+    dependencies: []
+
+---
+# Test Case 13: Network Connectivity Monitoring Workflow
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: network-task-bastion
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet bastion.eks-main-t.seerslab.io 22"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: network-task-bastion-mcall
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "telnet bastion-mcall.eks-main-t.seerslab.io 22"
+  timeout: 5
+  expect: "Escape character is"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: network-task-prodm-stg
+  namespace: mcall-system
+spec:
+  type: get
+  input: "https://prodm-stg.seerslab.io/api/v1/healthcheck"
+  timeout: 10
+  expect: "200|301 Moved Permanently"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: network-monitoring-workflow-test
+  namespace: mcall-system
+spec:
+  schedule: "*/3 * * * *"  # Every 3 minutes
+  concurrency: 2
+  timeout: 120
+  retryPolicy:
+    maxRetries: 2
+    retryDelay: 15
+    backoffPolicy: "exponential"
+  tasks:
+  - name: "check-bastion"
+    taskRef:
+      name: "network-task-bastion"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-bastion-mcall"
+    taskRef:
+      name: "network-task-bastion-mcall"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "check-prodm-stg"
+    taskRef:
+      name: "network-task-prodm-stg"
+      namespace: "mcall-system"
+    dependencies: []
+
+---
+# Test Case 14: Comprehensive Monitoring Workflow (All Services)
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: comprehensive-monitoring-workflow-test
+  namespace: mcall-system
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  concurrency: 8
+  timeout: 600
+  retryPolicy:
+    maxRetries: 3
+    retryDelay: 20
+    backoffPolicy: "exponential"
+  tasks:
+  # Web Services Monitoring
+  - name: "monitor-grafana"
+    taskRef:
+      name: "monitoring-task-grafana"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-prometheus"
+    taskRef:
+      name: "monitoring-task-prometheus"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-alertmanager"
+    taskRef:
+      name: "monitoring-task-alertmanager"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-argocd"
+    taskRef:
+      name: "monitoring-task-argocd"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-vault"
+    taskRef:
+      name: "monitoring-task-vault"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-consul"
+    taskRef:
+      name: "monitoring-task-consul"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-kiali"
+    taskRef:
+      name: "monitoring-task-kiali"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-jaeger"
+    taskRef:
+      name: "monitoring-task-jaeger"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-jenkins"
+    taskRef:
+      name: "monitoring-task-jenkins"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-sonarqube"
+    taskRef:
+      name: "monitoring-task-sonarqube"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-es-elk"
+    taskRef:
+      name: "monitoring-task-es-elk"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-kibana"
+    taskRef:
+      name: "monitoring-task-kibana"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-supabase"
+    taskRef:
+      name: "monitoring-task-supabase"
+      namespace: "mcall-system"
+    dependencies: []
+  # Database Monitoring
+  - name: "monitor-redis-hypen-dev"
+    taskRef:
+      name: "db-task-redis-hypen-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-redis-mc20-dev"
+    taskRef:
+      name: "db-task-redis-mc20-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-mysql-hypen-dev"
+    taskRef:
+      name: "db-task-mysql-hypen-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-mysql-mtown-dev"
+    taskRef:
+      name: "db-task-mysql-mtown-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-mysql-mc20-dev"
+    taskRef:
+      name: "db-task-mysql-mc20-dev"
+      namespace: "mcall-system"
+    dependencies: []
+  # Network Monitoring
+  - name: "monitor-bastion"
+    taskRef:
+      name: "network-task-bastion"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-bastion-mcall"
+    taskRef:
+      name: "network-task-bastion-mcall"
+      namespace: "mcall-system"
+    dependencies: []
+  - name: "monitor-prodm-stg"
+    taskRef:
+      name: "network-task-prodm-stg"
+      namespace: "mcall-system"
+    dependencies: []

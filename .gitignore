@@ -1,0 +1,17 @@
+/.settings/
+/bin/
+/logs/
+/vendor/
+/glide.lock
+/mcall.log
+/.DS_Store
+tz-mcall
+s3
+.idea
+manager
+
+# Test results directory
+test-results/
+
+# Built Helm charts
+*.tgz

@@ -1,0 +1,298 @@
+# Improved McallWorkflow example - referencing existing McallTask approach
+
+# 1. First define McallTasks
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: pre-backup-check-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "kubectl get pods -n database | grep postgres | grep Running | wc -l"
+  timeout: 30
+  retryCount: 2
+  environment:
+    NAMESPACE: "database"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: create-backup-dir-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "mkdir -p /backup && chmod 755 /backup"
+  timeout: 10
+  retryCount: 1
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: postgres-backup-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "pg_dump -h $DB_HOST -U backup_user -d $DB_NAME | gzip > /backup/postgres_$(date +%Y%m%d_%H%M%S).sql.gz"
+  timeout: 1800  # 30 minutes
+  retryCount: 2
+  environment:
+    PGPASSWORD: ""  # Set backup password
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: verify-backup-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "ls -la /backup/postgres_*.sql.gz | tail -1 && gzip -t /backup/postgres_$(date +%Y%m%d)*.sql.gz"
+  timeout: 60
+  retryCount: 1
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: upload-to-s3-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "aws s3 sync /backup/ s3://company-backups/database/$(date +%Y%m%d)/ --delete"
+  timeout: 600  # 10 minutes
+  retryCount: 3
+  environment:
+    AWS_ACCESS_KEY_ID: "YOUR_ACCESS_KEY"
+    AWS_SECRET_ACCESS_KEY: "YOUR_SECRET_KEY"
+    AWS_DEFAULT_REGION: "us-west-2"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: cleanup-old-backups-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "find /backup -name 'postgres_*.sql.gz' -mtime +7 -delete"
+  timeout: 60
+  retryCount: 1
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: send-notification-task
+  namespace: mcall-system
+spec:
+  type: post
+  input: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  timeout: 30
+  retryCount: 2
+  environment:
+    SLACK_MESSAGE: "Database backup completed successfully at $(date)"
+
+# 2. Reference existing McallTasks in McallWorkflow
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: database-backup-workflow
+  namespace: mcall-system
+spec:
+  # Cron scheduling: Execute daily at 2 AM
+  schedule: "0 2 * * *"
+  
+  # Workflow configuration
+  concurrency: 1
+  timeout: 3600  # 1 hour
+  
+  # Retry policy
+  retryPolicy:
+    maxRetries: 3
+    retryDelay: 300  # 5 minutes
+    backoffPolicy: "exponential"
+  
+  # Environment variables
+  environment:
+    BACKUP_DIR: "/backup"
+    DB_HOST: "postgres-primary.database.svc.cluster.local"
+    DB_NAME: "maindb"
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Task definitions (referencing existing McallTasks)
+  tasks:
+  - name: "pre-backup-check"
+    taskRef:
+      name: "pre-backup-check-task"
+      namespace: "mcall-system"
+    dependencies: []
+  
+  - name: "create-backup-dir"
+    taskRef:
+      name: "create-backup-dir-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "pre-backup-check"
+  
+  - name: "postgres-backup"
+    taskRef:
+      name: "postgres-backup-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "create-backup-dir"
+  
+  - name: "verify-backup"
+    taskRef:
+      name: "verify-backup-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "postgres-backup"
+  
+  - name: "upload-to-s3"
+    taskRef:
+      name: "upload-to-s3-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "verify-backup"
+  
+  - name: "cleanup-old-backups"
+    taskRef:
+      name: "cleanup-old-backups-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "upload-to-s3"
+  
+  - name: "send-notification"
+    taskRef:
+      name: "send-notification-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "cleanup-old-backups"
+
+---
+# Microservice health check example
+# 3. Define McallTasks for health checks
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: user-service-health-task
+  namespace: mcall-system
+spec:
+  type: get
+  input: "http://user-service.monitoring.svc.cluster.local:8080/health"
+  timeout: 10
+  retryCount: 2
+  environment:
+    SERVICE_NAME: "user-service"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: order-service-health-task
+  namespace: mcall-system
+spec:
+  type: get
+  input: "http://order-service.monitoring.svc.cluster.local:8080/health"
+  timeout: 10
+  retryCount: 2
+  environment:
+    SERVICE_NAME: "order-service"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: check-pod-counts-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "kubectl get pods -n monitoring | grep -E '(user-service|order-service)' | grep Running | wc -l"
+  timeout: 30
+  retryCount: 1
+  environment:
+    NAMESPACE: "monitoring"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: send-health-report-task
+  namespace: mcall-system
+spec:
+  type: post
+  input: "http://alertmanager.monitoring.svc.cluster.local:9093/api/v1/alerts"
+  timeout: 30
+  retryCount: 2
+  environment:
+    ALERT_MANAGER_URL: "http://alertmanager.monitoring.svc.cluster.local:9093"
+
+# 4. Reference health check tasks in McallWorkflow
+---
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: microservices-health-check
+  namespace: mcall-system
+spec:
+  # Cron scheduling: Execute every 5 minutes
+  schedule: "*/5 * * * *"
+  
+  # Workflow configuration
+  concurrency: 10  # Maximum 10 concurrent tasks
+  timeout: 300     # 5 minutes
+  
+  # Retry policy
+  retryPolicy:
+    maxRetries: 2
+    retryDelay: 30
+    backoffPolicy: "linear"
+  
+  # Task definitions (referencing existing McallTasks)
+  tasks:
+  - name: "user-service-health"
+    taskRef:
+      name: "user-service-health-task"
+      namespace: "mcall-system"
+    dependencies: []
+  
+  - name: "order-service-health"
+    taskRef:
+      name: "order-service-health-task"
+      namespace: "mcall-system"
+    dependencies: []
+  
+  - name: "check-pod-counts"
+    taskRef:
+      name: "check-pod-counts-task"
+      namespace: "mcall-system"
+    dependencies: []
+  
+  - name: "send-health-report"
+    taskRef:
+      name: "send-health-report-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "user-service-health"
+      - "order-service-health"
+      - "check-pod-counts"

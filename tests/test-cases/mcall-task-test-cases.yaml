@@ -1,0 +1,579 @@
+# McallTask Test Cases
+# This file contains comprehensive test cases for the McallTask CRD functionality
+
+---
+# Test Case 1: Basic Command Execution
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: basic-command-test
+spec:
+  type: cmd
+  input: "echo 'Basic Command Test - $(date)'"
+  name: "basic-command-test"
+  timeout: 30
+
+---
+# Test Case 2: HTTP GET Request
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: http-get-test
+spec:
+  type: get
+  input: "https://us.drillquiz.com/"
+  name: "http-get-test"
+  timeout: 30
+
+---
+# Test Case 3: Complex Command with JSON Input
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: complex-command-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'System Information:'"
+        },
+        {
+          "type": "cmd",
+          "input": "uname -a"
+        },
+        {
+          "type": "cmd",
+          "input": "df -h /"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/"
+        }
+      ]
+    }
+  name: "complex-command-test"
+  timeout: 30
+
+---
+# Test Case 4: Health Check Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: health-check-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'Health Check - $(date)'"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/"
+        }
+      ]
+    }
+  name: "health-check-test"
+  timeout: 30
+
+---
+# Test Case 5: Error Handling Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: error-handling-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'Testing error handling'"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/nonexistent"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/error"
+        }
+      ]
+    }
+  name: "error-handling-test"
+  timeout: 30
+
+---
+# Test Case 6: Timeout Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: timeout-test
+spec:
+  type: cmd
+  input: "sleep 5 && echo 'Timeout test completed'"
+  name: "timeout-test"
+  timeout: 30
+
+---
+# Test Case 7: Large Output Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: large-output-test
+spec:
+  type: cmd
+  input: "echo 'Large output test:' && for i in {1..100}; do echo 'Line $i: This is a test line with some content'; done"
+  name: "large-output-test"
+  timeout: 30
+
+---
+# Test Case 8: JSON Response Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: json-response-test
+spec:
+  type: get
+  input: "https://us.drillquiz.com/json"
+  name: "json-response-test"
+  timeout: 30
+
+---
+# Test Case 9: Multiple HTTP Requests
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: multiple-http-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/"
+        }
+      ]
+    }
+  name: "multiple-http-test"
+  timeout: 30
+
+---
+# Test Case 10: System Resource Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: system-resource-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'CPU Information:'"
+        },
+        {
+          "type": "cmd",
+          "input": "cat /proc/cpuinfo | grep 'model name' | head -1"
+        },
+        {
+          "type": "cmd",
+          "input": "echo 'Memory Information:'"
+        },
+        {
+          "type": "cmd",
+          "input": "free -h"
+        },
+        {
+          "type": "cmd",
+          "input": "echo 'Disk Information:'"
+        },
+        {
+          "type": "cmd",
+          "input": "df -h"
+        }
+      ]
+    }
+  name: "system-resource-test"
+  timeout: 30
+
+---
+# Test Case 11: HTTP Response Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: http-response-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200,
+            "body": {
+              "title": "DrillQuiz"
+            }
+          }
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200,
+            "body": {
+              "title": "DrillQuiz"
+            }
+          }
+        }
+      ]
+    }
+  name: "http-response-validation-test"
+  timeout: 30
+
+---
+# Test Case 12: HTTP Status Code Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: http-status-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200
+          }
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 201
+          }
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/nonexistent",
+          "expectedResponse": {
+            "statusCode": 404
+          }
+        }
+      ]
+    }
+  name: "http-status-validation-test"
+  timeout: 30
+
+---
+# Test Case 13: HTTP Header Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: http-header-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        }
+      ]
+    }
+  name: "http-header-validation-test"
+  timeout: 30
+
+---
+# Test Case 14: Complex Response Validation Test (Sequential)
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: complex-response-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expect": "200|DrillQuiz"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/nonexistent",
+          "expect": "200|DrillQuiz"
+        }
+      ]
+    }
+  name: "complex-response-validation-test"
+  timeout: 30
+  executionMode: "sequential"
+
+---
+# Test Case 15: Complex Response Validation Test (Parallel)
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: complex-response-validation-parallel-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expect": "200|DrillQuiz"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expect": "200|DrillQuiz"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expect": "200|DrillQuiz"
+        }
+      ]
+    }
+  name: "complex-response-validation-parallel-test"
+  timeout: 30
+  executionMode: "parallel"
+
+---
+# Test Case 16: FailFast Sequential Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: failfast-sequential-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'Step 1: Success'",
+          "name": "step1"
+        },
+        {
+          "type": "cmd",
+          "input": "nonexistentcommand12345",
+          "name": "step2"
+        },
+        {
+          "type": "cmd",
+          "input": "echo 'Step 3: Should not execute'",
+          "name": "step3"
+        }
+      ]
+    }
+  name: "failfast-sequential-test"
+  timeout: 30
+  executionMode: "sequential"
+  failFast: true
+
+---
+# Test Case 17: FailFast Parallel Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: failfast-parallel-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "name": "http1"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/nonexistent",
+          "name": "http2"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "name": "http3"
+        }
+      ]
+    }
+  name: "failfast-parallel-test"
+  timeout: 30
+  executionMode: "parallel"
+  failFast: true
+
+---
+# Test Case 18: CLI Output Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: cli-output-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'Hello World'",
+          "expectedOutput": "Hello World"
+        },
+        {
+          "type": "cmd",
+          "input": "echo 'Test 123' | grep 'Test'",
+          "expectedOutput": "Test 123"
+        },
+        {
+          "type": "cmd",
+          "input": "date",
+          "expectedOutput": {
+            "pattern": "\\d{4}-\\d{2}-\\d{2}"
+          }
+        }
+      ]
+    }
+  name: "cli-output-validation-test"
+  timeout: 30
+
+---
+# Test Case 16: Mixed Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mixed-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "cmd",
+          "input": "echo 'Starting validation test'",
+          "expectedOutput": "Starting validation test"
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200
+          }
+        },
+        {
+          "type": "cmd",
+          "input": "echo 'Validation completed'",
+          "expectedOutput": "Validation completed"
+        }
+      ]
+    }
+  name: "mixed-validation-test"
+  timeout: 30
+
+---
+# Test Case 17: Error Response Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: error-response-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/badrequest",
+          "expectedResponse": {
+            "statusCode": 400
+          }
+        },
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/api/error",
+          "expectedResponse": {
+            "statusCode": 500
+          }
+        },
+        {
+          "type": "cmd",
+          "input": "echo 'Error validation test'",
+          "expectedOutput": "Error validation test"
+        }
+      ]
+    }
+  name: "error-response-validation-test"
+  timeout: 30
+
+---
+# Test Case 18: JSON Schema Validation Test
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: json-schema-validation-test
+spec:
+  type: cmd
+  input: |
+    {
+      "inputs": [
+        {
+          "type": "get",
+          "input": "https://us.drillquiz.com/",
+          "expectedResponse": {
+            "statusCode": 200,
+            "body": {
+              "title": "DrillQuiz"
+            }
+          }
+        }
+      ]
+    }
+  name: "json-schema-validation-test"
+  timeout: 30

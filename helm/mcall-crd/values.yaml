@@ -1,0 +1,273 @@
+# Default values for mcall-crd
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Environment configuration
+environment:
+  # Environment name (dev, staging, prod, main)
+  name: "main"
+  # Environment suffix for resource naming
+  suffix: ""
+  # Environment prefix for resource naming
+  prefix: ""
+
+# Image configuration
+image:
+  repository: ""  # Set Docker image repository
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+
+# Service account configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Controller configuration
+controller:
+  # Number of replicas
+  replicas: 2
+  
+  # Reconcile interval in seconds
+  reconcileInterval: 5
+  
+  # Task timeout in seconds (how long to wait before marking task as succeeded)
+  taskTimeout: 5
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  # Node selector
+  nodeSelector: {}
+  
+  # Tolerations
+  tolerations: []
+  
+  # Affinity
+  affinity: {}
+  
+  # Environment variables
+  env:
+    LEADER_ELECTION: "true"
+    METRICS_BIND_ADDRESS: ":8080"
+    HEALTH_PROBE_BIND_ADDRESS: ":8081"
+    WEBHOOK_PORT: "8443"
+    WEBHOOK_CERT_DIR: "/tmp/k8s-webhook-server/serving-certs"
+  
+  # Liveness probe
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  # Readiness probe
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8081
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Service configuration
+service:
+  # Metrics service
+  metrics:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+  
+  # Webhook service
+  webhook:
+    enabled: true
+    type: ClusterIP
+    port: 443
+    targetPort: 8443
+
+# RBAC configuration
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
+
+
+# Webhook configuration
+webhook:
+  # Specifies whether webhooks should be created
+  enabled: false
+  
+  # Validating webhook configuration
+  validating:
+    enabled: false
+  
+  # Mutating webhook configuration
+  mutating:
+    enabled: false
+  
+  # Certificate configuration
+  certManager:
+    enabled: false
+    issuer: ""
+    issuerKind: ""
+    issuerGroup: ""
+  
+  # Manual certificate configuration
+  certs:
+    # Base64 encoded certificate
+    tlsCrt: ""
+    # Base64 encoded private key
+    tlsKey: ""
+  
+  # Validating webhook configuration
+  validating:
+    enabled: false
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
+  
+  # Mutating webhook configuration
+  mutating:
+    enabled: false
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
+
+# CRD configuration
+crds:
+  # Specifies whether CRDs should be installed
+  install: true
+  # Specifies whether CRDs should be kept when uninstalling
+  keep: false
+
+# Namespace configuration
+namespace:
+  # Specifies whether a namespace should be created
+  create: true
+  # Name of the namespace
+  name: mcall-system
+  # Labels for the namespace
+  labels:
+    name: mcall-system
+  # Annotations for the namespace
+  annotations: {}
+
+# Logging configuration
+logging:
+  # Specifies whether logging is enabled
+  enabled: true
+  
+  # Backend type: "postgres", "mysql", "elasticsearch", "kafka"
+  backend: "postgres"
+  
+  # PostgreSQL configuration
+  postgresql:
+    enabled: true
+    host: "devops-postgres-postgresql.devops.svc.cluster.local"
+    port: 5432
+    username: "admin"
+    password: ""  # Set this in values-secrets.yaml
+    database: "mcall_logs"
+    sslMode: "disable"
+    table:
+      name: "monitoring_logs"
+      autoCreate: true
+    retention:
+      days: 30
+      autoCleanup: true
+  
+  # MySQL configuration
+  mysql:
+    enabled: false
+    host: "localhost"
+    port: 3306
+    username: "root"
+    password: ""  # Set this in values-secrets.yaml
+    database: "mcall_logs"
+    table:
+      name: "monitoring_logs"
+      autoCreate: true
+    retention:
+      days: 30
+      autoCleanup: true
+  
+  # Elasticsearch configuration
+  elasticsearch:
+    enabled: false
+    url: "http://localhost:9200"
+    index: "mcall-logs"
+    username: ""
+    password: ""  # Set this in values-secrets.yaml
+  
+  # Kafka configuration
+  kafka:
+    enabled: false
+    brokers: ["localhost:9092"]
+    topic: "mcall-logs"
+
+
+# Cleanup configuration
+cleanup:
+  # Specifies whether cleanup job should be created for pre-delete hook
+  enabled: true
+  # Image for cleanup job
+  image:
+    repository: bitnami/kubectl
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # Resources for cleanup job
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+
+

@@ -1,0 +1,62 @@
+{{- if and .Values.logging.enabled .Values.logging.postgresql.retention.autoCleanup }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-log-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: log-cleanup
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "mcall-crd.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: log-cleanup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: log-cleanup
+            image: postgres:15-alpine
+            env:
+            - name: PGHOST
+              value: {{ .Values.logging.postgresql.host }}
+            - name: PGPORT
+              value: {{ .Values.logging.postgresql.port | quote }}
+            - name: PGUSER
+              value: {{ .Values.logging.postgresql.username }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mcall-crd.fullname" . }}-logging-secret
+                  key: postgresql-password
+            - name: PGDATABASE
+              value: {{ .Values.logging.postgresql.database }}
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              echo "Cleaning up old logs older than {{ .Values.logging.postgresql.retention.days }} days..."
+              
+              # Delete old logs
+              deleted_count=$(psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -t -c "
+                DELETE FROM {{ .Values.logging.postgresql.table.name }} 
+                WHERE timestamp < NOW() - INTERVAL '{{ .Values.logging.postgresql.retention.days }} days'
+                RETURNING id;
+              " | wc -l)
+              
+              echo "Cleaned up $deleted_count old log entries"
+              
+              # Vacuum analyze to optimize table
+              psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -c "VACUUM ANALYZE {{ .Values.logging.postgresql.table.name }};"
+              
+              echo "Log cleanup completed successfully!"
+{{- end }}

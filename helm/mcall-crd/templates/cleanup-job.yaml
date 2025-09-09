@@ -1,0 +1,71 @@
+{{- if .Values.cleanup.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mcall-crd.fullname" . }}-cleanup
+  namespace: {{ include "mcall-crd.namespace" . }}
+  labels:
+    {{- include "mcall-crd.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "mcall-crd.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mcall-crd.serviceAccountName" . }}
+      restartPolicy: Never
+      containers:
+      - name: cleanup
+        image: {{ .Values.cleanup.image.repository }}:{{ .Values.cleanup.image.tag }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "Starting cleanup of mcall CRD resources..."
+          
+          # Function to remove finalizers from resources
+          remove_finalizers() {
+            local resource_type=$1
+            local namespace=$2
+            echo "Removing finalizers from $resource_type..."
+            
+            # Get all resources of the type
+            local resources=$(kubectl get $resource_type -n $namespace -o name 2>/dev/null || echo "")
+            
+            if [ -n "$resources" ]; then
+              echo "$resources" | while read resource; do
+                if [ -n "$resource" ]; then
+                  echo "Removing finalizer from $resource"
+                  kubectl patch $resource -n $namespace -p '{"metadata":{"finalizers":[]}}' --type=merge || true
+                  
+                  # Wait a moment for the resource to be deleted
+                  sleep 1
+                fi
+              done
+            else
+              echo "No $resource_type resources found"
+            fi
+          }
+          
+          # Remove finalizers from all CRD resources
+          remove_finalizers "mcalltasks" "{{ include "mcall-crd.namespace" . }}"
+          remove_finalizers "mcallworkflows" "{{ include "mcall-crd.namespace" . }}"
+          
+          # Wait for resources to be fully deleted
+          echo "Waiting for resources to be deleted..."
+          sleep 5
+          
+          # Verify cleanup
+          echo "Verifying cleanup..."
+          kubectl get mcalltasks,mcallworkflows -n {{ include "mcall-crd.namespace" . }} || echo "All resources cleaned up"
+          
+          echo "Cleanup completed successfully"
+        {{- with .Values.cleanup.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+{{- end }}
