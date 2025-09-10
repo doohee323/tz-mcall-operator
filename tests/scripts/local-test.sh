@@ -162,7 +162,7 @@ fi
 
 # 4. Build and push Docker image
 print_status "Building Docker image..."
-if docker build --platform linux/amd64 -t tz-mcall-controller:test -f docker/Dockerfile .; then
+if docker build --platform linux/amd64 -t tz-mcall-crd:test -f docker/Dockerfile .; then
     print_success "Docker image built successfully"
 else
     print_error "Failed to build Docker image"
@@ -171,14 +171,14 @@ fi
 
 # Tag and push image
 print_status "Tagging and pushing Docker image..."
-if docker tag tz-mcall-controller:test ""/tz-mcall-controller:test; then
+if docker tag tz-mcall-crd:test "doohee323/tz-mcall-crd:test"; then
     print_success "Image tagged successfully"
 else
     print_error "Failed to tag image"
     exit 1
 fi
 
-if docker push ""/tz-mcall-controller:test; then
+if docker push "doohee323/tz-mcall-crd:test"; then
     print_success "Docker image pushed successfully"
 else
     print_warning "Failed to push image, trying alternative approach..."
@@ -187,7 +187,7 @@ else
     print_status "Loading image to all nodes..."
     for node in $(kubectl get nodes -o name | cut -d'/' -f2); do
         print_status "Loading image to node: $node"
-        docker save tz-mcall-controller:test | ssh $node "docker load" 2>/dev/null || true
+        docker save tz-mcall-crd:test | ssh $node "docker load" 2>/dev/null || true
     done
     print_success "Image loading completed"
 fi
