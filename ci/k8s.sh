@@ -222,7 +222,6 @@ deploy_helm_chart() {
             --namespace ${NAMESPACE} \
             --values "helm/mcall-crd/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
-            --set image.repository="" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
@@ -234,7 +233,6 @@ deploy_helm_chart() {
             --namespace ${NAMESPACE} \
             --values "helm/mcall-crd/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
-            --set image.repository="" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
