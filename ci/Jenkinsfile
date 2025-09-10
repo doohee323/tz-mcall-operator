@@ -12,7 +12,7 @@ pipeline {
         GIT_COMMITTER_EMAIL = ""  // Set git committer email
 
         BUILD_NUMBER = "${env.BUILD_NUMBER ?: 'latest'}"
-        DOCKER_NAME = "tz-mcall-controller"
+        DOCKER_NAME = "tz-mcall-crd"
         APP_NAME = "tz-mcall-crd"
         DEPLOYMENT_NAME = 'tz-mcall-crd'
         NAMESPACE = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'main' || (env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'qa' ? 'mcall-system' : 'mcall-dev'}"
@@ -83,6 +83,9 @@ pipeline {
                         try {
                             withDockerRegistry(credentialsId: "${DOCKERHUB_CREDENTIALS_ID}", url: '') {
                                 def image = "${REGISTRY}/${DOCKER_NAME}:${BUILD_NUMBER}"
+                                
+                                echo "Building Docker image: ${image}"
+                                echo "Registry: ${REGISTRY}, Docker Name: ${DOCKER_NAME}, Build Number: ${BUILD_NUMBER}"
                                 
                                 // Build controller image
                                 sh "docker build -f docker/Dockerfile -t ${image} ."
