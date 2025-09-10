@@ -27,7 +27,7 @@ pipeline {
         GIT_CREDENTIAL = 'github-token'
         GITHUP_TOKEN = credentials('GITHUP_TOKEN')
 
-        REGISTRY = ''  // Set Docker registry
+        REGISTRY = 'doohee323'  // Set Docker registry
         DOCKERHUB_CREDENTIALS_ID = 'DOCKERHUB_CREDENTIALS_ID'
 
         VAULT_TOKEN = credentials('VAULT_TOKEN')
