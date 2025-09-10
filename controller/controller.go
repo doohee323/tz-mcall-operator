@@ -1435,12 +1435,12 @@ func (r *McallTaskReconciler) cleanupAssociatedResources(ctx context.Context, ta
 // SetupWithManager sets up the controller with the Manager.
 func (r *McallTaskReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	log := log.FromContext(context.Background())
-	
+
 	// Add CRD availability check with retry
 	go func() {
 		maxRetries := 10
 		retryInterval := 5 * time.Second
-		
+
 		for i := 0; i < maxRetries; i++ {
 			ctx := context.Background()
 			var mcallTasks mcallv1.McallTaskList
@@ -1449,21 +1449,21 @@ func (r *McallTaskReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				time.Sleep(retryInterval)
 				continue
 			}
-			
+
 			var mcallWorkflows mcallv1.McallWorkflowList
 			if err := r.Client.List(ctx, &mcallWorkflows); err != nil {
 				log.Error(err, "McallWorkflow CRD not available, retrying...", "attempt", i+1, "maxRetries", maxRetries)
 				time.Sleep(retryInterval)
 				continue
 			}
-			
+
 			log.Info("CRDs are now available", "mcallTasks", len(mcallTasks.Items), "mcallWorkflows", len(mcallWorkflows.Items))
 			return
 		}
-		
+
 		log.Error(nil, "CRDs not available after maximum retries", "maxRetries", maxRetries)
 	}()
-	
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcallv1.McallTask{}).
 		Complete(r)

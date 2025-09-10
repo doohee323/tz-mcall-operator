@@ -14,7 +14,7 @@ environment:
 
 # Image configuration
 image:
-  repository: "doohee323/tz-mcall-crd"  # Set Docker image repository
+  repository: doohee323/tz-mcall-crd
   tag: "staging-latest"
   pullPolicy: IfNotPresent
 

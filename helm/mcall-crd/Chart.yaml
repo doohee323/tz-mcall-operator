@@ -4,12 +4,12 @@ description: A Helm chart for mcall CRD-based task execution system
 type: application
 version: 1.0.0
 appVersion: "1.0.0"
-home: ""  # Set project home URL
+home: https://github.com/doohee323/tz-mcall-crd
 sources:
-  - ""  # Set project source URL
+  - https://github.com/doohee323/tz-mcall-crd
 maintainers:
   - name: Dewey Hong
-    email: ""  # Set maintainer email
+    email: doohee323@gmail.com
 keywords:
   - mcall
   - task-execution
