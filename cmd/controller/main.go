@@ -89,6 +89,31 @@ func main() {
 		"reconcileInterval", reconcileInterval.String(),
 		"taskTimeout", taskTimeout.String())
 
+	// Check CRD availability before starting manager
+	setupLog.Info("Checking CRD availability...")
+	config := ctrl.GetConfigOrDie()
+	client, err := client.New(config, client.Options{})
+	if err != nil {
+		setupLog.Error(err, "unable to create client for CRD check")
+		os.Exit(1)
+	}
+
+	// Check if CRDs exist
+	ctx := context.Background()
+	var mcallTasks mcallv1.McallTaskList
+	if err := client.List(ctx, &mcallTasks); err != nil {
+		setupLog.Error(err, "McallTask CRD not available", "error", err.Error())
+	} else {
+		setupLog.Info("McallTask CRD is available", "count", len(mcallTasks.Items))
+	}
+
+	var mcallWorkflows mcallv1.McallWorkflowList
+	if err := client.List(ctx, &mcallWorkflows); err != nil {
+		setupLog.Error(err, "McallWorkflow CRD not available", "error", err.Error())
+	} else {
+		setupLog.Info("McallWorkflow CRD is available", "count", len(mcallWorkflows.Items))
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                server.Options{BindAddress: metricsAddr},
