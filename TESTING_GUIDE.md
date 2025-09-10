@@ -888,6 +888,19 @@ This script will:
 
 ### 2. Run Comprehensive Tests
 
+**⚠️ Important: Execute from Project Root Directory**
+
+All test commands must be run from the project root directory (`/path/to/tz-mcall-crd/`), not from the `tests/test-cases/` directory.
+
+```bash
+# Make sure you're in the project root directory
+cd /path/to/tz-mcall-crd
+pwd  # Should show: /path/to/tz-mcall-crd
+
+# Then run tests
+./tests/test-cases/run-tests.sh --namespace mcall-dev --check
+```
+
 #### Check System Status
 ```bash
 # Check prerequisites and system status
@@ -902,8 +915,43 @@ This script will:
 
 #### Run Specific Test
 ```bash
-# Run a specific test case
+# Run specific McallTask test
 ./tests/test-cases/run-tests.sh --namespace mcall-dev basic-command-test
+
+# Run specific McallWorkflow test
+./tests/test-cases/run-tests.sh --namespace mcall-dev basic-workflow-test
+
+# Run with debug mode
+./tests/test-cases/run-tests.sh --namespace mcall-dev --debug basic-command-test
+```
+
+#### Common Path Issues and Solutions
+
+**Problem**: `awk: can't open file tests/test-cases/mcall-task-test-cases.yaml`
+
+**Solution**: 
+1. Ensure you're in the project root directory
+2. Use the full path from project root: `./tests/test-cases/run-tests.sh`
+
+```bash
+# ❌ Wrong - running from tests/test-cases/ directory
+cd tests/test-cases
+./run-tests.sh --namespace mcall-dev --task
+
+# ✅ Correct - running from project root
+cd /path/to/tz-mcall-crd
+./tests/test-cases/run-tests.sh --namespace mcall-dev --task
+```
+
+**Verification**:
+```bash
+# Check current directory
+pwd
+# Should output: /path/to/tz-mcall-crd
+
+# Check if test files exist
+ls -la tests/test-cases/
+# Should show: mcall-task-test-cases.yaml, mcall-workflow-test-cases.yaml, run-tests.sh
 ```
 
 #### Run with Debug Mode
