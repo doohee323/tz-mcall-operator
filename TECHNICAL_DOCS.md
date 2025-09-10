@@ -6,6 +6,7 @@
 - [CRD Definitions](#crd-definitions)
 - [Controller Implementation](#controller-implementation)
 - [Development Guide](#development-guide)
+- [Development & Testing](#development--testing)
 - [Deployment Guide](#deployment-guide)
 - [Jenkins CI/CD](#jenkins-cicd)
 - [Troubleshooting](#troubleshooting)
@@ -645,6 +646,141 @@ Available test commands:
 - Coverage: `go test -cover ./...`
 - Specific test: `go test -run TestMcallTaskReconciler ./controller/`
 
+## Development & Testing
+
+### Makefile Integration
+
+The project includes a comprehensive Makefile that integrates all testing and development workflows:
+
+#### Testing Commands
+```bash
+# Local development testing
+make test-debug          # Run tests with debugging information
+make test-specific       # Run specific test function
+make test-verbose        # Run all tests with verbose logging
+make test-coverage       # Run tests with coverage analysis
+make test-benchmark      # Run benchmark tests
+make test-all           # Run all local tests
+
+# Integration testing
+make test-cleanup       # Run cleanup integration test (requires cluster)
+make test-jenkins       # Run Jenkins-style validation tests
+make validate           # Run all validation tests (no cluster required)
+make integration        # Run all integration tests (requires cluster)
+```
+
+#### Build & Deployment Commands
+```bash
+# Build commands
+make build              # Build controller binary
+make build-docker       # Build Docker image
+
+# Deployment commands
+make deploy             # Deploy to cluster
+make deploy-dev         # Deploy to dev environment
+make deploy-staging     # Deploy to staging environment
+```
+
+#### Cleanup Commands
+```bash
+make clean              # Clean test results and build artifacts
+make clean-docker       # Clean Docker images
+make clean-all          # Clean everything
+```
+
+### Test Scripts Architecture
+
+The project uses a layered testing approach:
+
+#### 1. Makefile Commands (Developer Convenience)
+- **Purpose**: Fast, convenient testing for developers
+- **Use Case**: Local development, debugging, quick validation
+- **Dependencies**: Minimal (Go, basic tools)
+
+#### 2. Integration Scripts (CI/CD Integration)
+- **`test-cleanup.sh`**: CRD cleanup functionality testing
+- **`jenkins-test.sh`**: CI/CD pipeline validation
+- **Use Case**: Automated testing, CI/CD pipelines
+- **Dependencies**: kubectl, helm, cluster access
+
+#### 3. Comprehensive Test Suite
+- **`run-tests.sh`**: 18 different test cases
+- **Use Case**: Regression testing, comprehensive validation
+- **Dependencies**: Full cluster environment
+
+### Development Workflow
+
+#### 1. Local Development
+```bash
+# Start with debugging
+make test-debug
+
+# Run specific tests
+make test-specific
+
+# Check coverage
+make test-coverage
+```
+
+#### 2. Pre-commit Validation
+```bash
+# Run all validation tests
+make validate
+
+# Build and test
+make build
+make test-all
+```
+
+#### 3. Integration Testing
+```bash
+# Test with cluster (requires kubectl access)
+make integration
+
+# Test cleanup functionality
+make test-cleanup
+```
+
+#### 4. CI/CD Pipeline
+```bash
+# Jenkins/GitHub Actions
+./tests/scripts/jenkins-test.sh $BUILD_NUMBER $BRANCH $NAMESPACE $VALUES_FILE
+./tests/scripts/test-cleanup.sh
+```
+
+### Debugging Support
+
+#### VS Code Debugging
+- Set breakpoints in `controller_test.go`
+- Use **F11** (Step Into) to debug `controller.go` functions
+- See [DEBUG_GUIDE.md](DEBUG_GUIDE.md) for detailed instructions
+
+#### Terminal Debugging
+```bash
+# Debug specific test
+make test-specific
+
+# Run with verbose output
+make test-verbose
+
+# Run with coverage
+make test-coverage
+```
+
+### Benefits of Makefile Integration
+
+1. **Developer Experience**: Simple commands for common tasks
+2. **Consistency**: Standardized commands across team
+3. **CI/CD Compatibility**: Scripts can be called directly with parameters
+4. **Maintainability**: Centralized command definitions
+5. **Extensibility**: Easy to add new commands
+
+### Help and Documentation
+```bash
+# Show all available commands
+make help
+```
+
 ## Deployment Guide
 
 ### Helm Chart Structure
@@ -754,7 +890,7 @@ The Jenkins pipeline includes:
 - Type: Pipeline
 - Definition: Pipeline script from SCM
 - SCM: Git
-- Repository: `https://github.com/USERNAME/tz-mcall.git`
+- Repository: `https://github.com/doohee323/tz-mcall-crd.git`
 - Script Path: `ci/Jenkinsfile`
 
 #### Build Triggers

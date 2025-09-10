@@ -2,42 +2,92 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch mcall",
+            "name": "Debug Tests",
             "type": "go",
             "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}/mcall.go",
-            "args": ["web"],
-            "env": {},
-            "args": ["-w", "-p", "3000"],
-            "showLog": true
+            "mode": "test",
+            "program": "${workspaceFolder}/controller",
+            "args": [
+                "-test.v",
+                "-test.run",
+                "TestExecuteCommand"
+            ],
+            "showLog": true,
+            "trace": "verbose",
+            "stopOnEntry": false,
+            "showGlobalVariables": true,
+            "showRegisters": false,
+            "showDisassembly": false
         },
         {
-            "name": "Launch mcall with command",
+            "name": "Debug All Tests",
             "type": "go",
             "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}/mcall.go",
-            "args": ["-i", "ls -al", "-t", "cmd"],
-            "env": {},
-            "showLog": true
+            "mode": "test",
+            "program": "${workspaceFolder}/controller",
+            "args": [
+                "-test.v"
+            ],
+            "showLog": true,
+            "trace": "verbose",
+            "stopOnEntry": false,
+            "showGlobalVariables": true
         },
         {
-            "name": "Attach to Process",
-            "type": "go",
-            "request": "attach",
-            "mode": "local",
-            "processId": 0
-        },
-        {
-            "name": "Launch mcall with mcall.yaml",
+            "name": "Debug Specific Test",
             "type": "go",
             "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}/mcall.go",
-            "args": ["-c", "etc/mcall.yaml"],
-            "env": {},
-            "showLog": true
+            "mode": "test",
+            "program": "${workspaceFolder}/controller",
+            "args": [
+                "-test.v",
+                "-test.run",
+                "${input:testName}"
+            ],
+            "showLog": true,
+            "trace": "verbose",
+            "stopOnEntry": false,
+            "showGlobalVariables": true
+        },
+        {
+            "name": "Debug TaskWorker Test",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}/controller",
+            "args": [
+                "-test.v",
+                "-test.run",
+                "TestTaskWorkerWithExpect"
+            ],
+            "showLog": true,
+            "trace": "verbose",
+            "stopOnEntry": false,
+            "showGlobalVariables": true
+        },
+        {
+            "name": "Debug HTTP Test",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}/controller",
+            "args": [
+                "-test.v",
+                "-test.run",
+                "TestExecuteHTTPRequest"
+            ],
+            "showLog": true,
+            "trace": "verbose",
+            "stopOnEntry": false,
+            "showGlobalVariables": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testName",
+            "description": "Enter test function name",
+            "default": "TestExecuteCommand",
+            "type": "promptString"
         }
     ]
 }

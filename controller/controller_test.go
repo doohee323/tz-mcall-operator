@@ -18,7 +18,28 @@ type EmailAlert struct {
 	Details     string
 }
 
+// Debug helper functions
+func debugLog(t *testing.T, format string, args ...interface{}) {
+	if testing.Verbose() {
+		t.Logf("[DEBUG] "+format, args...)
+	}
+}
+
+func debugBreakpoint(t *testing.T, message string) {
+	if testing.Verbose() {
+		t.Logf("[BREAKPOINT] %s", message)
+		// Set breakpoint here for debugging
+	}
+}
+
+func debugStep(t *testing.T, step int, description string) {
+	if testing.Verbose() {
+		t.Logf("[STEP %d] %s", step, description)
+	}
+}
+
 func TestExecuteCommand(t *testing.T) {
+	debugStep(t, 1, "Starting test case definition")
 	tests := []struct {
 		name     string
 		command  string
@@ -55,25 +76,48 @@ func TestExecuteCommand(t *testing.T) {
 			contains: "",
 		},
 	}
+	debugLog(t, "Total %d test cases defined", len(tests))
 
-	for _, tt := range tests {
+	debugStep(t, 2, "Starting test case execution loop")
+	for i, tt := range tests {
+		debugBreakpoint(t, fmt.Sprintf("Starting test case %d: %s", i+1, tt.name))
 		t.Run(tt.name, func(t *testing.T) {
+			debugStep(t, 3, fmt.Sprintf("Executing command: %s", tt.command))
+			debugLog(t, "Command: %s, Timeout: %v, Expected Error: %v, Contains: %s",
+				tt.command, tt.timeout, tt.wantErr, tt.contains)
+
 			output, err := executeCommand(tt.command, tt.timeout)
 
+			debugStep(t, 4, "Analyzing command execution result")
+			debugLog(t, "Execution result - Output: %q, Error: %v", output, err)
+
 			if tt.wantErr {
+				debugStep(t, 5, "Validating expected error case")
 				if err == nil {
 					t.Errorf("executeCommand() expected error but got none")
+				} else {
+					debugLog(t, "Error occurred as expected: %v", err)
 				}
 			} else {
+				debugStep(t, 5, "Validating expected success case")
 				if err != nil {
 					t.Errorf("executeCommand() unexpected error: %v", err)
-				}
-				if tt.contains != "" && !containsEnhanced(output, tt.contains) {
-					t.Errorf("executeCommand() output %q does not contain %q", output, tt.contains)
+				} else {
+					debugLog(t, "Command execution successful")
+					if tt.contains != "" {
+						debugStep(t, 6, "Validating output content")
+						if !containsEnhanced(output, tt.contains) {
+							t.Errorf("executeCommand() output %q does not contain %q", output, tt.contains)
+						} else {
+							debugLog(t, "Output contains expected string '%s'", tt.contains)
+						}
+					}
 				}
 			}
+			debugLog(t, "Test case '%s' completed", tt.name)
 		})
 	}
+	debugStep(t, 7, "All test cases completed")
 }
 
 func TestExecuteHTTPRequest(t *testing.T) {
@@ -211,6 +255,7 @@ func TestCheckExpect(t *testing.T) {
 }
 
 func TestTaskWorkerWithExpect(t *testing.T) {
+	debugStep(t, 1, "Starting TaskWorker test case definition")
 	tests := []struct {
 		name      string
 		input     string
@@ -275,29 +320,47 @@ func TestTaskWorkerWithExpect(t *testing.T) {
 			wantErr:   false,
 		},
 	}
+	debugLog(t, "Total %d TaskWorker test cases defined", len(tests))
 
-	for _, tt := range tests {
+	debugStep(t, 2, "Starting TaskWorker test case execution loop")
+	for i, tt := range tests {
+		debugBreakpoint(t, fmt.Sprintf("Starting TaskWorker test case %d: %s", i+1, tt.name))
 		t.Run(tt.name, func(t *testing.T) {
+			debugStep(t, 3, fmt.Sprintf("Creating TaskWorker: %s", tt.nameStr))
+			debugLog(t, "Input: %s, Type: %s, Name: %s, Expect: %s, Timeout: %v",
+				tt.input, tt.inputType, tt.nameStr, tt.expect, tt.timeout)
+
 			worker := NewTaskWorker(tt.input, tt.inputType, tt.nameStr, tt.expect)
+			debugLog(t, "TaskWorker created successfully")
 
-			// Execute worker
+			debugStep(t, 4, "Executing TaskWorker")
 			worker.Execute(tt.timeout)
+			debugLog(t, "TaskWorker execution completed")
 
-			// Get result
+			debugStep(t, 5, "Receiving result")
 			result := <-worker.result
+			debugLog(t, "Result received - Error: %s, Content: %s", result.Error, result.Content)
 
-			// Check if error matches expectation
+			debugStep(t, 6, "Validating result")
 			if tt.wantErr {
+				debugStep(t, 7, "Validating expected error case")
 				if result.Error == "0" {
 					t.Errorf("Expected error but got success")
+				} else {
+					debugLog(t, "Error occurred as expected: %s", result.Error)
 				}
 			} else {
+				debugStep(t, 7, "Validating expected success case")
 				if result.Error != "0" {
 					t.Errorf("Expected success but got error: %s", result.Error)
+				} else {
+					debugLog(t, "TaskWorker execution successful")
 				}
 			}
+			debugLog(t, "TaskWorker test case '%s' completed", tt.name)
 		})
 	}
+	debugStep(t, 8, "All TaskWorker test cases completed")
 }
 
 func TestTaskWorkerWithHTTPExpect(t *testing.T) {

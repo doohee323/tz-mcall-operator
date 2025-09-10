@@ -1,4 +1,4 @@
-module github.com/USERNAME/tz-mcall-crd
+module github.com/doohee323/tz-mcall-crd
 
 go 1.23.0
 

@@ -34,6 +34,7 @@
 - [Quick Start](#quick-start)
 - [CRD Types](#crd-types)
 - [Usage Examples](#usage-examples)
+- [Development & Testing](#development--testing)
 - [Deployment](#deployment)
 - [Monitoring](#monitoring)
 - [Troubleshooting](#troubleshooting)
@@ -85,8 +86,8 @@ The system consists of two main CRD types:
 
 ```bash
 # Clone the repository
-git clone https://github.com/USERNAME/tz-mcall.git
-cd tz-mcall
+git clone https://github.com/doohee323/tz-mcall-crd.git
+cd tz-mcall-crd
 
 # Install CRDs and Controller
 helm install mcall-crd ./helm/mcall-crd \
@@ -278,6 +279,162 @@ spec:
     dependencies: ["test-api"]
 ```
 
+## 🧪 Development & Testing
+
+### Makefile Commands
+
+The project includes a comprehensive Makefile for development and testing workflows:
+
+#### Local Development & Testing
+```bash
+# Run tests with debugging information
+make test-debug
+
+# Run specific test function
+make test-specific
+
+# Run all tests with verbose logging
+make test-verbose
+
+# Run tests with coverage
+make test-coverage
+
+# Run all local tests
+make test-all
+```
+
+#### Integration & Cleanup Tests
+```bash
+# Run cleanup integration test (requires cluster)
+make test-cleanup
+
+# Run Jenkins-style validation tests
+make test-jenkins
+
+# Run all validation tests (no cluster required)
+make validate
+
+# Run all integration tests (requires cluster)
+make integration
+```
+
+#### Build & Deployment
+```bash
+# Build controller binary
+make build
+
+# Build Docker image
+make build-docker
+
+# Deploy to cluster
+make deploy
+
+# Deploy to specific environments
+make deploy-dev
+make deploy-staging
+```
+
+#### Cleanup
+```bash
+# Clean test results and build artifacts
+make clean
+
+# Clean Docker images
+make clean-docker
+
+# Clean everything
+make clean-all
+```
+
+### Test Scripts
+
+The project includes specialized test scripts for different scenarios:
+
+#### `test-cleanup.sh` - Integration Testing
+- **Purpose**: Test CRD cleanup functionality
+- **Requirements**: kubectl, helm, cluster access
+- **Features**:
+  - Install chart
+  - Create test resources
+  - Verify cleanup on uninstall
+  - Force cleanup if needed
+
+#### `jenkins-test.sh` - CI/CD Validation
+- **Purpose**: Jenkins-style validation tests
+- **Requirements**: helm, kubectl (dry-run only)
+- **Features**:
+  - Helm chart validation
+  - Template rendering
+  - CRD validation
+  - Example manifests validation
+  - Docker image build test
+
+### Development Workflow
+
+#### 1. Local Development
+```bash
+# Start with debugging
+make test-debug
+
+# Run specific tests
+make test-specific
+
+# Check coverage
+make test-coverage
+```
+
+#### 2. Pre-commit Validation
+```bash
+# Run all validation tests
+make validate
+
+# Build and test
+make build
+make test-all
+```
+
+#### 3. Integration Testing
+```bash
+# Test with cluster (requires kubectl access)
+make integration
+
+# Test cleanup functionality
+make test-cleanup
+```
+
+#### 4. CI/CD Pipeline
+```bash
+# Jenkins/GitHub Actions
+./tests/scripts/jenkins-test.sh $BUILD_NUMBER $BRANCH $NAMESPACE $VALUES_FILE
+./tests/scripts/test-cleanup.sh
+```
+
+### Debugging
+
+#### VS Code Debugging
+1. Set breakpoints in `controller_test.go`
+2. Press **F5** or select "Debug Tests"
+3. Use **F11** (Step Into) to debug `controller.go` functions
+4. See [DEBUG_GUIDE.md](DEBUG_GUIDE.md) for detailed instructions
+
+#### Terminal Debugging
+```bash
+# Debug specific test
+make test-specific
+
+# Run with verbose output
+make test-verbose
+
+# Run with coverage
+make test-coverage
+```
+
+### Help
+```bash
+# Show all available commands
+make help
+```
+
 ## Installation
 
 ### Development
@@ -354,7 +511,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- Dewey Hong - Initial work - [USERNAME](https://github.com/USERNAME)
+- Dewey Hong - Initial work - [doohee323](https://github.com/doohee323)
 
 ---
 

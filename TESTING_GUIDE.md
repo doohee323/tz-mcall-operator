@@ -39,7 +39,39 @@ This document provides comprehensive testing guidelines for the McallTask Custom
 
 ### Test Scripts Overview
 
-The testing suite includes two main scripts with different purposes:
+The testing suite includes multiple testing approaches for different scenarios:
+
+#### Makefile Commands - Quick Development Testing
+- **Purpose**: Fast, convenient testing for developers
+- **Location**: `Makefile`
+- **Use Case**: Local development, debugging, quick validation
+- **Features**:
+  - Unit tests with debugging support
+  - Coverage analysis
+  - Benchmark testing
+  - Integration test execution
+  - Build and deployment commands
+
+#### `test-cleanup.sh` - Integration Testing
+- **Purpose**: Test CRD cleanup functionality
+- **Location**: `tests/scripts/test-cleanup.sh`
+- **Use Case**: Integration testing, cleanup validation
+- **Features**:
+  - Install chart
+  - Create test resources
+  - Verify cleanup on uninstall
+  - Force cleanup if needed
+
+#### `jenkins-test.sh` - CI/CD Validation
+- **Purpose**: Jenkins-style validation tests
+- **Location**: `tests/scripts/jenkins-test.sh`
+- **Use Case**: CI/CD pipeline validation
+- **Features**:
+  - Helm chart validation
+  - Template rendering
+  - CRD validation
+  - Example manifests validation
+  - Docker image build test
 
 #### `local-test.sh` - Development Environment Setup
 - **Purpose**: Set up local development environment and verify basic installation
@@ -770,7 +802,72 @@ spec:
 
 ## Running Tests
 
-### 1. Development Environment Setup
+### 1. Quick Testing with Makefile
+
+For fast development and testing, use the Makefile commands:
+
+#### Local Development Testing
+```bash
+# Run tests with debugging information
+make test-debug
+
+# Run specific test function
+make test-specific
+
+# Run all tests with verbose logging
+make test-verbose
+
+# Run tests with coverage
+make test-coverage
+
+# Run all local tests
+make test-all
+```
+
+#### Integration Testing
+```bash
+# Run cleanup integration test (requires cluster)
+make test-cleanup
+
+# Run Jenkins-style validation tests
+make test-jenkins
+
+# Run all validation tests (no cluster required)
+make validate
+
+# Run all integration tests (requires cluster)
+make integration
+```
+
+#### Build & Deployment
+```bash
+# Build controller binary
+make build
+
+# Build Docker image
+make build-docker
+
+# Deploy to cluster
+make deploy
+
+# Deploy to specific environments
+make deploy-dev
+make deploy-staging
+```
+
+#### Cleanup
+```bash
+# Clean test results and build artifacts
+make clean
+
+# Clean Docker images
+make clean-docker
+
+# Clean everything
+make clean-all
+```
+
+### 2. Development Environment Setup
 
 For initial setup and basic verification, use the development environment script:
 

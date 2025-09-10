@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	mcallv1 "github.com/USERNAME/tz-mcall-crd/api/v1"
+	mcallv1 "github.com/doohee323/tz-mcall-crd/api/v1"
 )
 
 func TestMcallWorkflowController(t *testing.T) {
