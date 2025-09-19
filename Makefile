@@ -142,6 +142,52 @@ clean-all: clean clean-docker
 	@echo "=== Cleaning everything ==="
 
 # =============================================================================
+# CODE GENERATION
+# =============================================================================
+
+# Generate code using controller-gen
+generate:
+	@echo "=== Generating code using controller-gen ==="
+	@if ! command -v controller-gen &> /dev/null; then \
+		echo "Error: controller-gen is required for code generation"; \
+		echo "Install with: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest"; \
+		exit 1; \
+	fi
+	controller-gen object paths=./api/...
+	controller-gen crd paths=./api/... output:crd:dir=./helm/mcall-crd/templates/crds
+	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-crd/templates
+
+# Generate only DeepCopy methods
+generate-objects:
+	@echo "=== Generating DeepCopy methods ==="
+	@if ! command -v controller-gen &> /dev/null; then \
+		echo "Error: controller-gen is required for code generation"; \
+		echo "Install with: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest"; \
+		exit 1; \
+	fi
+	controller-gen object paths=./api/...
+
+# Generate only CRDs
+generate-crds:
+	@echo "=== Generating CRDs ==="
+	@if ! command -v controller-gen &> /dev/null; then \
+		echo "Error: controller-gen is required for code generation"; \
+		echo "Install with: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest"; \
+		exit 1; \
+	fi
+	controller-gen crd paths=./api/... output:crd:dir=./helm/mcall-crd/templates/crds
+
+# Generate only RBAC
+generate-rbac:
+	@echo "=== Generating RBAC permissions ==="
+	@if ! command -v controller-gen &> /dev/null; then \
+		echo "Error: controller-gen is required for code generation"; \
+		echo "Install with: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest"; \
+		exit 1; \
+	fi
+	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-crd/templates
+
+# =============================================================================
 # UTILITY COMMANDS
 # =============================================================================
 
@@ -157,6 +203,12 @@ integration: test-cleanup
 # Show help
 help:
 	@echo "Available commands:"
+	@echo ""
+	@echo "CODE GENERATION:"
+	@echo "  generate           - Generate all code (DeepCopy, CRDs, RBAC)"
+	@echo "  generate-objects   - Generate DeepCopy methods only"
+	@echo "  generate-crds      - Generate CRDs only"
+	@echo "  generate-rbac      - Generate RBAC permissions only"
 	@echo ""
 	@echo "LOCAL DEVELOPMENT & TESTING:"
 	@echo "  test-debug         - Run tests in debug mode"

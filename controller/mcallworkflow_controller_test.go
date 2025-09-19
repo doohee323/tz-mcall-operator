@@ -36,8 +36,10 @@ var _ = Describe("McallWorkflow Controller", func() {
 	BeforeEach(func() {
 		ctx, cancel = context.WithCancel(context.Background())
 
-		// Setup logger
-		log.SetLogger(zap.New(zap.UseDevMode(true)))
+		// Setup logger and add to context
+		logger := zap.New(zap.UseDevMode(true))
+		log.SetLogger(logger)
+		ctx = log.IntoContext(ctx, logger)
 
 		// Setup scheme
 		scheme = runtime.NewScheme()

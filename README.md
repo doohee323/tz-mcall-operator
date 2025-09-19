@@ -285,6 +285,21 @@ spec:
 
 The project includes a comprehensive Makefile for development and testing workflows:
 
+#### Code Generation
+```bash
+# Generate all code (DeepCopy, CRDs, RBAC)
+make generate
+
+# Generate only DeepCopy methods
+make generate-objects
+
+# Generate only CRDs
+make generate-crds
+
+# Generate only RBAC permissions
+make generate-rbac
+```
+
 #### Local Development & Testing
 ```bash
 # Run tests with debugging information

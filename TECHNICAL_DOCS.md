@@ -617,6 +617,68 @@ The `validateResponse()` function handles output validation:
 
 **Installation Commands**: See `tests/scripts/local-test.sh` for setup script
 
+### Code Generation with controller-gen
+
+This project uses `controller-gen` for automatic code generation from kubebuilder markers. The following commands are available in the Makefile:
+
+#### Available Commands
+
+```bash
+# Generate all code (DeepCopy, CRDs, RBAC)
+make generate
+
+# Generate only DeepCopy methods
+make generate-objects
+
+# Generate only CRDs
+make generate-crds
+
+# Generate only RBAC permissions
+make generate-rbac
+```
+
+#### When to Use Code Generation
+
+**1. API Type Changes**
+```bash
+# After modifying api/v1/*_types.go files
+make generate-objects
+```
+
+**2. CRD Schema Updates**
+```bash
+# After adding/removing kubebuilder markers like:
+# //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
+# //+kubebuilder:validation:Required
+make generate-crds
+```
+
+**3. RBAC Permission Changes**
+```bash
+# After modifying RBAC markers like:
+# //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+make generate-rbac
+```
+
+**4. Full Regeneration**
+```bash
+# After major changes to API types or controllers
+make generate
+```
+
+#### Prerequisites
+
+Install `controller-gen` if not already installed:
+```bash
+go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
+```
+
+#### Generated Files
+
+- **DeepCopy Methods**: `api/v1/zz_generated.deepcopy.go`
+- **CRD Definitions**: `helm/mcall-crd/templates/crds/*.yaml`
+- **RBAC Permissions**: `helm/mcall-crd/templates/rbac.yaml`
+
 ### Local Development Setup
 
 **Location**: `tests/scripts/local-test.sh`
