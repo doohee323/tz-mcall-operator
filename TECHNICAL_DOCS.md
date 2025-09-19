@@ -1,4 +1,4 @@
-# mcall CRD Technical Documentation
+# mcall Operator Technical Documentation
 
 ## Table of Contents
 
@@ -952,7 +952,7 @@ The Jenkins pipeline includes:
 - Type: Pipeline
 - Definition: Pipeline script from SCM
 - SCM: Git
-- Repository: `https://github.com/doohee323/tz-mcall-crd.git`
+- Repository: `https://github.com/doohee323/tz-mcall-operator.git`
 - Script Path: `ci/Jenkinsfile`
 
 #### Build Triggers

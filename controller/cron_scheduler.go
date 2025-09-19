@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	mcallv1 "github.com/doohee323/tz-mcall-crd/api/v1"
+	mcallv1 "github.com/doohee323/tz-mcall-operator/api/v1"
 )
 
 // CronScheduler handles cron schedule parsing and execution

@@ -1,4 +1,4 @@
-# Staging environment values for mcall-crd
+# Staging environment values for mcall-operator
 # This is a YAML-formatted file.
 
 # Global configuration
@@ -14,7 +14,7 @@ environment:
 
 # Image configuration
 image:
-  repository: doohee323/tz-mcall-crd
+  repository: doohee323/tz-mcall-operator
   tag: "staging-latest"
   pullPolicy: IfNotPresent
 
@@ -42,7 +42,7 @@ controller:
             matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: ["mcall-crd"]
+              values: ["mcall-operator"]
           topologyKey: kubernetes.io/hostname
 
 # Service configuration

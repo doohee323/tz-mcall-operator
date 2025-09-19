@@ -19,8 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	mcallv1 "github.com/doohee323/tz-mcall-crd/api/v1"
-	"github.com/doohee323/tz-mcall-crd/controller"
+	mcallv1 "github.com/doohee323/tz-mcall-operator/api/v1"
+	"github.com/doohee323/tz-mcall-operator/controller"
 	//+kubebuilder:scaffold:imports
 )
 

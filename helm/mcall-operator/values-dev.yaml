@@ -1,4 +1,4 @@
-# Development environment values for mcall-crd
+# Development environment values for mcall-operator
 # This is a YAML-formatted file.
 
 # Global configuration
@@ -14,7 +14,7 @@ environment:
 
 # Image configuration
 image:
-  repository: doohee323/tz-mcall-crd
+  repository: doohee323/tz-mcall-operator
   tag: "test"
   pullPolicy: Always
 

@@ -154,8 +154,8 @@ generate:
 		exit 1; \
 	fi
 	controller-gen object paths=./api/...
-	controller-gen crd paths=./api/... output:crd:dir=./helm/mcall-crd/templates/crds
-	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-crd/templates
+	controller-gen crd paths=./api/... output:crd:dir=./helm/mcall-operator/templates/crds
+	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-operator/templates
 
 # Generate only DeepCopy methods
 generate-objects:
@@ -175,7 +175,7 @@ generate-crds:
 		echo "Install with: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest"; \
 		exit 1; \
 	fi
-	controller-gen crd paths=./api/... output:crd:dir=./helm/mcall-crd/templates/crds
+	controller-gen crd paths=./api/... output:crd:dir=./helm/mcall-operator/templates/crds
 
 # Generate only RBAC
 generate-rbac:
@@ -185,7 +185,7 @@ generate-rbac:
 		echo "Install with: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest"; \
 		exit 1; \
 	fi
-	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-crd/templates
+	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-operator/templates
 
 # =============================================================================
 # UTILITY COMMANDS

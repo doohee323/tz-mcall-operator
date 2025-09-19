@@ -39,7 +39,7 @@ COPY --from=builder /workspace/manager .
 RUN chmod +x manager
 
 # Copy CRD definitions (templates)
-COPY --from=builder /workspace/helm/mcall-crd/templates/crds/ ./crd/
+COPY --from=builder /workspace/helm/mcall-operator/templates/crds/ ./crd/
 
 # Copy examples
 COPY --from=builder /workspace/examples/ ./examples/

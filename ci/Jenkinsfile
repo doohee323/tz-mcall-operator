@@ -12,13 +12,13 @@ pipeline {
         GIT_COMMITTER_EMAIL = ""  // Set git committer email
 
         BUILD_NUMBER = "${env.BUILD_NUMBER ?: 'latest'}"
-        DOCKER_NAME = "tz-mcall-crd"
-        APP_NAME = "tz-mcall-crd"
-        DEPLOYMENT_NAME = 'tz-mcall-crd'
+        DOCKER_NAME = "tz-mcall-operator"
+        APP_NAME = "tz-mcall-operator"
+        DEPLOYMENT_NAME = 'tz-mcall-operator'
         NAMESPACE = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'main' || (env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'qa' ? 'mcall-system' : 'mcall-dev'}"
         STAGING_POSTFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'main' || (env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'qa' ? '' : '-dev'}"
         NODE_ENV = "development"
-        HELM_CHART_PATH = "helm/mcall-crd"
+        HELM_CHART_PATH = "helm/mcall-operator"
         VALUES_FILE = "values-dev.yaml"
 
         KUBECTL = "kubectl -n ${NAMESPACE}"

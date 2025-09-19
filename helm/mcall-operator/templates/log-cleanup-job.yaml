@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "mcall-crd.fullname" . }}-log-cleanup
+  name: {{ include "mcall-operator.fullname" . }}-log-cleanup
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "mcall-crd.labels" . | nindent 4 }}
+    {{- include "mcall-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: log-cleanup
 spec:
   schedule: "0 2 * * *"  # Daily at 2 AM
@@ -17,7 +17,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "mcall-crd.selectorLabels" . | nindent 12 }}
+            {{- include "mcall-operator.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: log-cleanup
         spec:
           restartPolicy: OnFailure
@@ -34,7 +34,7 @@ spec:
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "mcall-crd.fullname" . }}-logging-secret
+                  name: {{ include "mcall-operator.fullname" . }}-logging-secret
                   key: postgresql-password
             - name: PGDATABASE
               value: {{ .Values.logging.postgresql.database }}

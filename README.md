@@ -1,10 +1,10 @@
-# tz-mcall-crd
+# tz-mcall-operator
 
 [![Go Version](https://img.shields.io/badge/Go-1.18+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.19+-blue.svg)](https://kubernetes.io)
 
-**Simple task runner for Kubernetes** - Execute commands and HTTP requests with built-in scheduling, monitoring, and management.
+**Kubernetes Task Operator** - Execute commands and HTTP requests with built-in scheduling, monitoring, and management using Custom Resource Definitions.
 
 ## What does it do?
 
@@ -12,10 +12,11 @@
 1. **Run Commands** - Execute shell commands in Kubernetes pods
 2. **Make HTTP Requests** - GET/POST requests to any URL
 
-**Why CRD?** 
+**Why Kubernetes Operator?** 
 - Kubernetes manages everything (scheduling, monitoring, logs, scaling)
 - No need for external cron servers or job schedulers
 - Built-in retry, timeout, and error handling
+- Native Kubernetes integration with Custom Resource Definitions
 
 ## Key Features
 
@@ -42,7 +43,7 @@
 
 ## 🏗️ Architecture
 
-The system consists of two main CRD types:
+The operator consists of two main CRD types:
 
 - **McallTask**: Individual task definitions (commands, HTTP requests)
 - **McallWorkflow**: Grouped tasks with dependencies and execution order
@@ -86,11 +87,11 @@ The system consists of two main CRD types:
 
 ```bash
 # Clone the repository
-git clone https://github.com/doohee323/tz-mcall-crd.git
-cd tz-mcall-crd
+git clone https://github.com/doohee323/tz-mcall-operator.git
+cd tz-mcall-operator
 
 # Install CRDs and Controller
-helm install mcall-crd ./helm/mcall-crd \
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values ./helm/mcall-crd/values-dev.yaml
@@ -104,7 +105,7 @@ kubectl get crd | grep mcall
 
 ### 1. Install
 ```bash
-helm install mcall-crd ./helm/mcall-crd \
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values ./helm/mcall-crd/values-dev.yaml
@@ -454,7 +455,7 @@ make help
 
 ### Development
 ```bash
-helm install mcall-crd ./helm/mcall-crd \
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-dev \
   --create-namespace \
   --values ./helm/mcall-crd/values-dev.yaml
@@ -462,7 +463,7 @@ helm install mcall-crd ./helm/mcall-crd \
 
 ### Production
 ```bash
-helm install mcall-crd ./helm/mcall-crd \
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values ./helm/mcall-crd/values.yaml

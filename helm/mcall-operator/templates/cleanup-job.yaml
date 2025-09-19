@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "mcall-crd.fullname" . }}-cleanup
-  namespace: {{ include "mcall-crd.namespace" . }}
+  name: {{ include "mcall-operator.fullname" . }}-cleanup
+  namespace: {{ include "mcall-operator.namespace" . }}
   labels:
-    {{- include "mcall-crd.labels" . | nindent 4 }}
+    {{- include "mcall-operator.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "1"
@@ -14,9 +14,9 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "mcall-crd.selectorLabels" . | nindent 8 }}
+        {{- include "mcall-operator.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "mcall-crd.serviceAccountName" . }}
+      serviceAccountName: {{ include "mcall-operator.serviceAccountName" . }}
       restartPolicy: Never
       containers:
       - name: cleanup
@@ -52,8 +52,8 @@ spec:
           }
           
           # Remove finalizers from all CRD resources
-          remove_finalizers "mcalltasks" "{{ include "mcall-crd.namespace" . }}"
-          remove_finalizers "mcallworkflows" "{{ include "mcall-crd.namespace" . }}"
+          remove_finalizers "mcalltasks" "{{ include "mcall-operator.namespace" . }}"
+          remove_finalizers "mcallworkflows" "{{ include "mcall-operator.namespace" . }}"
           
           # Wait for resources to be fully deleted
           echo "Waiting for resources to be deleted..."
@@ -61,7 +61,7 @@ spec:
           
           # Verify cleanup
           echo "Verifying cleanup..."
-          kubectl get mcalltasks,mcallworkflows -n {{ include "mcall-crd.namespace" . }} || echo "All resources cleaned up"
+          kubectl get mcalltasks,mcallworkflows -n {{ include "mcall-operator.namespace" . }} || echo "All resources cleaned up"
           
           echo "Cleanup completed successfully"
         {{- with .Values.cleanup.resources }}

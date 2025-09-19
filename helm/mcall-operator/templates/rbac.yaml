@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "mcall-crd.fullname" . }}
+  name: {{ include "mcall-operator.fullname" . }}
   labels:
-    {{- include "mcall-crd.labels" . | nindent 4 }}
+    {{- include "mcall-operator.labels" . | nindent 4 }}
 rules:
 - apiGroups: ["mcall.tz.io"]
   resources: ["mcalltasks", "mcallworkflows"]
@@ -31,17 +31,17 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "mcall-crd.fullname" . }}
+  name: {{ include "mcall-operator.fullname" . }}
   labels:
-    {{- include "mcall-crd.labels" . | nindent 4 }}
+    {{- include "mcall-operator.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "mcall-crd.fullname" . }}
+  name: {{ include "mcall-operator.fullname" . }}
 subjects:
 - kind: ServiceAccount
-  name: {{ include "mcall-crd.serviceAccountName" . }}
-  namespace: {{ include "mcall-crd.namespace" . }}
+  name: {{ include "mcall-operator.serviceAccountName" . }}
+  namespace: {{ include "mcall-operator.namespace" . }}
 {{- end }}
 
 

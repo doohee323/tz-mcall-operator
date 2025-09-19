@@ -1,8 +1,8 @@
-# McallTask CRD Testing Guide
+# McallTask Operator Testing Guide
 
 ## Overview
 
-This document provides comprehensive testing guidelines for the McallTask Custom Resource Definition (CRD) system. The testing suite validates the automatic status initialization, HTTP response validation, CLI command execution, and overall system functionality.
+This document provides comprehensive testing guidelines for the McallTask Operator system. The testing suite validates the automatic status initialization, HTTP response validation, CLI command execution, and overall system functionality.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ This document provides comprehensive testing guidelines for the McallTask Custom
    - `mcallworkflows.mcall.tz.io`
 
 2. **Controller Running:**
-   - Pod: `tz-mcall-crd-*`
+   - Pod: `tz-mcall-operator-*`
    - Namespace: `mcall-system`
    - Status: `Running`
 
@@ -106,7 +106,7 @@ kubectl get namespace mcall-system
 kubectl get crd | grep mcall
 
 # Check if controller is running
-kubectl get pods -n mcall-system -l app.kubernetes.io/name=tz-mcall-crd
+kubectl get pods -n mcall-system -l app.kubernetes.io/name=tz-mcall-operator
 ```
 
 ### 2. Run System Check
@@ -890,12 +890,12 @@ This script will:
 
 **⚠️ Important: Execute from Project Root Directory**
 
-All test commands must be run from the project root directory (`/path/to/tz-mcall-crd/`), not from the `tests/test-cases/` directory.
+All test commands must be run from the project root directory (`/path/to/tz-mcall-operator/`), not from the `tests/test-cases/` directory.
 
 ```bash
 # Make sure you're in the project root directory
-cd /path/to/tz-mcall-crd
-pwd  # Should show: /path/to/tz-mcall-crd
+cd /path/to/tz-mcall-operator
+pwd  # Should show: /path/to/tz-mcall-operator
 
 # Then run tests
 ./tests/test-cases/run-tests.sh --namespace mcall-dev --check
@@ -939,7 +939,7 @@ cd tests/test-cases
 ./run-tests.sh --namespace mcall-dev --task
 
 # ✅ Correct - running from project root
-cd /path/to/tz-mcall-crd
+cd /path/to/tz-mcall-operator
 ./tests/test-cases/run-tests.sh --namespace mcall-dev --task
 ```
 
@@ -947,7 +947,7 @@ cd /path/to/tz-mcall-crd
 ```bash
 # Check current directory
 pwd
-# Should output: /path/to/tz-mcall-crd
+# Should output: /path/to/tz-mcall-operator
 
 # Check if test files exist
 ls -la tests/test-cases/
@@ -987,7 +987,7 @@ ls -la tests/test-cases/
 kubectl get pods -n mcall-dev
 
 # Check controller logs
-kubectl logs -n mcall-dev -l app.kubernetes.io/name=mcall-crd -f
+kubectl logs -n mcall-dev -l app.kubernetes.io/name=mcall-operator -f
 ```
 
 #### Helm Installation Issues
@@ -1006,7 +1006,7 @@ kubectl logs -n mcall-dev -l app.kubernetes.io/name=mcall-crd -f
 
 ```bash
 # Clean up development environment
-helm uninstall mcall-crd-dev -n mcall-dev
+helm uninstall mcall-operator-dev -n mcall-dev
 kubectl delete namespace mcall-dev
 
 # Force clean up (if stuck)

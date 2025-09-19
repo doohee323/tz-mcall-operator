@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "mcall-crd.fullname" . }}-postgres-init
+  name: {{ include "mcall-operator.fullname" . }}-postgres-init
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "mcall-crd.labels" . | nindent 4 }}
+    {{- include "mcall-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgres-init
   annotations:
     "helm.sh/hook": post-install,post-upgrade
@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "mcall-crd.selectorLabels" . | nindent 8 }}
+        {{- include "mcall-operator.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgres-init
     spec:
       restartPolicy: OnFailure
@@ -32,7 +32,7 @@ spec:
         - name: PGPASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ include "mcall-crd.fullname" . }}-logging-secret
+              name: {{ include "mcall-operator.fullname" . }}-logging-secret
               key: postgresql-password
         - name: PGDATABASE
           value: {{ .Values.logging.postgresql.database }}

@@ -1,8 +1,8 @@
-# mcall CRD System User Guide
+# mcall Operator System User Guide
 
 ## Overview
 
-This is a step-by-step guide for applying the mcall CRD system to actual production environments. It is written from the perspective of operators/DevOps engineers, not developers.
+This is a step-by-step guide for applying the mcall Operator system to actual production environments. It is written from the perspective of operators/DevOps engineers, not developers.
 
 ## Step 1: System Installation and Initial Setup
 
@@ -10,8 +10,8 @@ This is a step-by-step guide for applying the mcall CRD system to actual product
 
 ```bash
 # 1. Install CRDs (McallTask and McallWorkflow implemented)
-kubectl apply -f https://raw.githubusercontent.com/USERNAME/tz-mcall-crd/main/helm/mcall-crd/crds/mcalltask-crd.yaml
-kubectl apply -f https://raw.githubusercontent.com/USERNAME/tz-mcall-crd/main/helm/mcall-crd/crds/mcallworkflow-crd.yaml
+kubectl apply -f https://raw.githubusercontent.com/USERNAME/tz-mcall-operator/main/helm/mcall-operator/crds/mcalltask-crd.yaml
+kubectl apply -f https://raw.githubusercontent.com/USERNAME/tz-mcall-operator/main/helm/mcall-operator/crds/mcallworkflow-crd.yaml
 
 # 2. Verify installation
 kubectl get crd | grep mcall
@@ -25,11 +25,11 @@ kubectl get crd | grep mcall
 
 ```bash
 # Installation using Helm (recommended)
-helm repo add mcall-crd https://USERNAME.github.io/tz-mcall-crd
-helm install mcall-crd mcall-crd/mcall-crd --namespace mcall-system --create-namespace
+helm repo add mcall-operator https://USERNAME.github.io/tz-mcall-operator
+helm install mcall-operator mcall-operator/mcall-operator --namespace mcall-system --create-namespace
 
 # Or direct installation
-kubectl apply -f https://raw.githubusercontent.com/USERNAME/tz-mcall-crd/main/ci/k8s-crd.yaml
+kubectl apply -f https://raw.githubusercontent.com/USERNAME/tz-mcall-operator/main/ci/k8s-crd.yaml
 ```
 
 ### 1.3 Installation Verification

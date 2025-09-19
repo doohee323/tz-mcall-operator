@@ -118,7 +118,7 @@ force_cleanup_all_mcall_resources() {
 cleanup_conflicting_resources() {
     echo "🧹 Cleaning up conflicting resources..."
     
-    HELM_RELEASE_NAME="tz-mcall-crd${STAGING_POSTFIX}"
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     OLD_RELEASE_NAME="mcall-crd${STAGING_POSTFIX}"
     
     # Check for old Helm releases
@@ -209,20 +209,20 @@ deploy_helm_chart() {
     
     # Label namespace for Helm management
     echo "🏷️  Labeling namespace for Helm management..."
-    HELM_RELEASE_NAME="tz-mcall-crd${STAGING_POSTFIX}"
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     kubectl label namespace ${NAMESPACE} app.kubernetes.io/managed-by=Helm --overwrite
     kubectl annotate namespace ${NAMESPACE} meta.helm.sh/release-name=${HELM_RELEASE_NAME} --overwrite
     kubectl annotate namespace ${NAMESPACE} meta.helm.sh/release-namespace=${NAMESPACE} --overwrite
     
     # Install or upgrade Helm chart with staging postfix
-    HELM_RELEASE_NAME="tz-mcall-crd${STAGING_POSTFIX}"
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     HELM_BIN="/tmp/helm/linux-amd64/helm"
     if [ -f "$HELM_BIN" ]; then
-        $HELM_BIN upgrade --install ${HELM_RELEASE_NAME} helm/mcall-crd \
+        $HELM_BIN upgrade --install ${HELM_RELEASE_NAME} helm/mcall-operator \
             --namespace ${NAMESPACE} \
-            --values "helm/mcall-crd/${VALUES_FILE}" \
+            --values "helm/mcall-operator/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
-            --set image.repository="doohee323/tz-mcall-crd" \
+            --set image.repository="doohee323/tz-mcall-operator" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
@@ -230,11 +230,11 @@ deploy_helm_chart() {
             --wait \
             --timeout=10m
     else
-        helm upgrade --install ${HELM_RELEASE_NAME} helm/mcall-crd \
+        helm upgrade --install ${HELM_RELEASE_NAME} helm/mcall-operator \
             --namespace ${NAMESPACE} \
-            --values "helm/mcall-crd/${VALUES_FILE}" \
+            --values "helm/mcall-operator/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
-            --set image.repository="doohee323/tz-mcall-crd" \
+            --set image.repository="doohee323/tz-mcall-operator" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
@@ -244,11 +244,11 @@ deploy_helm_chart() {
     fi
     
     # Clean up temporary values file
-    if [ -f "helm/mcall-crd/${VALUES_FILE}.tmp" ]; then
-        rm "helm/mcall-crd/${VALUES_FILE}.tmp"
+    if [ -f "helm/mcall-operator/${VALUES_FILE}.tmp" ]; then
+        rm "helm/mcall-operator/${VALUES_FILE}.tmp"
     fi
-    if [ -f "helm/mcall-crd/${VALUES_FILE}.tmp.bak" ]; then
-        rm "helm/mcall-crd/${VALUES_FILE}.tmp.bak"
+    if [ -f "helm/mcall-operator/${VALUES_FILE}.tmp.bak" ]; then
+        rm "helm/mcall-operator/${VALUES_FILE}.tmp.bak"
     fi
     
     echo "✅ Helm chart deployed successfully"
@@ -272,7 +272,7 @@ verify_deployment() {
     
     # Check pods
     echo "=== Pod Status ==="
-    kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=tz-mcall-crd || echo "No pods found"
+    kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=tz-mcall-operator || echo "No pods found"
     
     # Check services
     echo "=== Service Status ==="
@@ -284,7 +284,7 @@ verify_deployment() {
     
     # Wait for pods to be ready
     echo "⏳ Waiting for pods to be ready..."
-    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=tz-mcall-crd -n ${NAMESPACE} --timeout=300s || echo "Pods not ready yet"
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=tz-mcall-operator -n ${NAMESPACE} --timeout=300s || echo "Pods not ready yet"
     
     echo "✅ Deployment verification completed"
 }
@@ -318,7 +318,7 @@ rollback_deployment() {
     echo "🔄 Rolling back deployment..."
     
     # Rollback Helm chart
-    HELM_RELEASE_NAME="tz-mcall-crd${STAGING_POSTFIX}"
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     HELM_BIN="/tmp/helm/linux-amd64/helm"
     if [ -f "$HELM_BIN" ]; then
         $HELM_BIN rollback ${HELM_RELEASE_NAME} -n ${NAMESPACE} || echo "No rollback available"
@@ -334,7 +334,7 @@ cleanup_deployment() {
     echo "🗑️  Cleaning up deployment..."
     
     # Delete Helm chart with force and no hooks
-    HELM_RELEASE_NAME="tz-mcall-crd${STAGING_POSTFIX}"
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     HELM_BIN="/tmp/helm/linux-amd64/helm"
     
     # Check if Helm release exists
