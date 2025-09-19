@@ -89,8 +89,8 @@ After configuring credentials, run Jenkins pipeline to verify:
 
 3. **Verify Kubernetes Secret creation**:
    ```bash
-   kubectl get secret tz-mcall-crd-logging-secret -n mcall-system
-   kubectl describe secret tz-mcall-crd-logging-secret -n mcall-system
+   kubectl get secret tz-mcall-operator-logging-secret -n mcall-system
+   kubectl describe secret tz-mcall-operator-logging-secret -n mcall-system
    ```
 
 ## Troubleshooting

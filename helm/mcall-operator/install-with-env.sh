@@ -14,5 +14,5 @@ helm install mcall-crd mcall/mcall-crd \
   --set logging.mysql.password="$MYSQL_PASSWORD" \
   --set logging.elasticsearch.password="$ELASTICSEARCH_PASSWORD"
 
-echo "✅ mcall-crd installed successfully!"
-echo "📝 To check logs: kubectl logs -n mcall-system -l app.kubernetes.io/name=tz-mcall-crd"
+echo "✅ mcall-operator installed successfully!"
+echo "📝 To check logs: kubectl logs -n mcall-system -l app.kubernetes.io/name=tz-mcall-operator"

@@ -66,7 +66,7 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Starting tz-mcall-crd controller...")
+	fmt.Println("Starting tz-mcall-operator controller...")
 
 	var metricsAddr string
 	var enableLeaderElection bool
@@ -122,7 +122,7 @@ func main() {
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "tz-mcall-crd",
+		LeaderElectionID:       "tz-mcall-operator",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

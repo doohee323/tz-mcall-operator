@@ -50,10 +50,10 @@ fi
 
 # Test 2: Template rendering
 print_status "Test 2: Template rendering"
-if helm template mcall-crd-test ./helm/mcall-crd \
-    --values ./helm/mcall-crd/${VALUES_FILE} \
+if helm template mcall-operator-test ./helm/mcall-operator \
+    --values ./helm/mcall-operator/${VALUES_FILE} \
     --set image.tag=${BUILD_NUMBER} \
-    --set image.repository=doohee323/tz-mcall-crd > /dev/null; then
+    --set image.repository=doohee323/tz-mcall-operator > /dev/null; then
     print_success "Template rendering successful"
 else
     print_error "Template rendering failed"

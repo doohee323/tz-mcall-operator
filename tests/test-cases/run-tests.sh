@@ -70,14 +70,14 @@ check_crds() {
 check_controller() {
     echo -e "${BLUE}🔍 Checking Controller...${NC}"
     
-    local controller_pods=$(run_kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=tz-mcall-crd --no-headers | wc -l)
+    local controller_pods=$(run_kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=tz-mcall-operator --no-headers | wc -l)
     
     if [ "$controller_pods" -eq 0 ]; then
         echo -e "${RED}❌ No controller pods found${NC}"
         exit 1
     fi
     
-    local running_pods=$(run_kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=tz-mcall-crd --field-selector=status.phase=Running --no-headers | wc -l)
+    local running_pods=$(run_kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=tz-mcall-operator --field-selector=status.phase=Running --no-headers | wc -l)
     
     if [ "$running_pods" -eq 0 ]; then
         echo -e "${RED}❌ No running controller pods found${NC}"

@@ -233,7 +233,7 @@ pipeline {
 
                                 echo ""
                                 echo "=== Pod Status ==="
-                                kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=tz-mcall-crd || echo "No pods found"
+                                kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=tz-mcall-operator || echo "No pods found"
 
                                 echo ""
                                 echo "=== CRD Status ==="

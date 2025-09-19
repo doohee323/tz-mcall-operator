@@ -1050,10 +1050,10 @@ The controller requires the following permissions:
 #### Monitoring
 ```bash
 # Check controller pods
-kubectl get pods -n mcall-system -l app.kubernetes.io/name=tz-mcall-crd
+kubectl get pods -n mcall-system -l app.kubernetes.io/name=tz-mcall-operator
 
 # Check leader election lease
-kubectl get lease tz-mcall-crd -n mcall-system
+kubectl get lease tz-mcall-operator -n mcall-system
 
 # Check task status
 kubectl get mcalltasks -n mcall-system

@@ -234,7 +234,7 @@ spec:
 
 ## Why Use This?
 
-| Traditional Cron | tz-mcall-crd |
+| Traditional Cron | tz-mcall-operator |
 |------------------|--------------|
 | ❌ No monitoring | ✅ Kubernetes monitoring |
 | ❌ No retry logic | ✅ Built-in retry |
