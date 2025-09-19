@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "mcall-crd.name" -}}
+{{- define "mcall-operator.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 Environment-specific naming is applied.
 */}}
-{{- define "mcall-crd.fullname" -}}
+{{- define "mcall-operator.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -23,16 +23,16 @@ Environment-specific naming is applied.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "mcall-crd.chart" -}}
+{{- define "mcall-operator.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "mcall-crd.labels" -}}
-helm.sh/chart: {{ include "mcall-crd.chart" . }}
-{{ include "mcall-crd.selectorLabels" . }}
+{{- define "mcall-operator.labels" -}}
+helm.sh/chart: {{ include "mcall-operator.chart" . }}
+{{ include "mcall-operator.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -42,17 +42,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "mcall-crd.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "mcall-crd.name" . }}
+{{- define "mcall-operator.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "mcall-operator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "mcall-crd.serviceAccountName" -}}
+{{- define "mcall-operator.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "mcall-crd.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "mcall-operator.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -61,7 +61,7 @@ Create the name of the service account to use
 {{/*
 Create the namespace name
 */}}
-{{- define "mcall-crd.namespace" -}}
+{{- define "mcall-operator.namespace" -}}
 {{- if .Values.namespace.create }}
 {{- .Values.namespace.name }}
 {{- else }}
@@ -72,7 +72,7 @@ Create the namespace name
 {{/*
 Create the image name
 */}}
-{{- define "mcall-crd.image" -}}
+{{- define "mcall-operator.image" -}}
 {{- $registry := .Values.global.imageRegistry | default .Values.image.registry }}
 {{- $tag := .Values.image.tag | default .Chart.AppVersion | toString }}
 {{- if $registry }}
@@ -85,7 +85,7 @@ Create the image name
 {{/*
 Create the image pull secrets
 */}}
-{{- define "mcall-crd.imagePullSecrets" -}}
+{{- define "mcall-operator.imagePullSecrets" -}}
 {{- if .Values.global.imagePullSecrets }}
 imagePullSecrets:
 {{- range .Values.global.imagePullSecrets }}
@@ -102,7 +102,7 @@ imagePullSecrets:
 {{/*
 Create the resource requirements
 */}}
-{{- define "mcall-crd.resources" -}}
+{{- define "mcall-operator.resources" -}}
 {{- if .Values.controller.resources }}
 resources:
 {{- toYaml .Values.controller.resources | nindent 2 }}
@@ -112,7 +112,7 @@ resources:
 {{/*
 Create the node selector
 */}}
-{{- define "mcall-crd.nodeSelector" -}}
+{{- define "mcall-operator.nodeSelector" -}}
 {{- if .Values.controller.nodeSelector }}
 nodeSelector:
 {{- toYaml .Values.controller.nodeSelector | nindent 2 }}
@@ -122,7 +122,7 @@ nodeSelector:
 {{/*
 Create the tolerations
 */}}
-{{- define "mcall-crd.tolerations" -}}
+{{- define "mcall-operator.tolerations" -}}
 {{- if .Values.controller.tolerations }}
 tolerations:
 {{- toYaml .Values.controller.tolerations | nindent 2 }}
@@ -132,7 +132,7 @@ tolerations:
 {{/*
 Create the affinity
 */}}
-{{- define "mcall-crd.affinity" -}}
+{{- define "mcall-operator.affinity" -}}
 {{- if .Values.controller.affinity }}
 affinity:
 {{- toYaml .Values.controller.affinity | nindent 2 }}
@@ -142,7 +142,7 @@ affinity:
 {{/*
 Create the environment variables
 */}}
-{{- define "mcall-crd.env" -}}
+{{- define "mcall-operator.env" -}}
 {{- if .Values.controller.env }}
 env:
 {{- range $key, $value := .Values.controller.env }}
@@ -155,28 +155,28 @@ env:
 {{/*
 Create the webhook certificate secret name
 */}}
-{{- define "mcall-crd.webhookCertSecretName" -}}
-{{- printf "%s-webhook-certs" (include "mcall-crd.fullname" .) }}
+{{- define "mcall-operator.webhookCertSecretName" -}}
+{{- printf "%s-webhook-certs" (include "mcall-operator.fullname" .) }}
 {{- end }}
 
 {{/*
 Create the webhook service name
 */}}
-{{- define "mcall-crd.webhookServiceName" -}}
-{{- printf "%s-webhook-service" (include "mcall-crd.fullname" .) }}
+{{- define "mcall-operator.webhookServiceName" -}}
+{{- printf "%s-webhook-service" (include "mcall-operator.fullname" .) }}
 {{- end }}
 
 {{/*
 Create the metrics service name
 */}}
-{{- define "mcall-crd.metricsServiceName" -}}
-{{- printf "%s-metrics" (include "mcall-crd.fullname" .) }}
+{{- define "mcall-operator.metricsServiceName" -}}
+{{- printf "%s-metrics" (include "mcall-operator.fullname" .) }}
 {{- end }}
 
 {{/*
 Create the liveness probe
 */}}
-{{- define "mcall-crd.livenessProbe" -}}
+{{- define "mcall-operator.livenessProbe" -}}
 {{- if .Values.controller.livenessProbe }}
 livenessProbe:
 {{- toYaml .Values.controller.livenessProbe | nindent 2 }}
@@ -186,7 +186,7 @@ livenessProbe:
 {{/*
 Create the readiness probe
 */}}
-{{- define "mcall-crd.readinessProbe" -}}
+{{- define "mcall-operator.readinessProbe" -}}
 {{- if .Values.controller.readinessProbe }}
 readinessProbe:
 {{- toYaml .Values.controller.readinessProbe | nindent 2 }}
