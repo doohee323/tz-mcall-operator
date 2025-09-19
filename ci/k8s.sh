@@ -119,7 +119,7 @@ cleanup_conflicting_resources() {
     echo "🧹 Cleaning up conflicting resources..."
     
     HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
-    OLD_RELEASE_NAME="mcall-crd${STAGING_POSTFIX}"
+    OLD_RELEASE_NAME="mcall-operator${STAGING_POSTFIX}"
     
     # Check for old Helm releases
     if helm list -n ${NAMESPACE} | grep -q ${OLD_RELEASE_NAME}; then

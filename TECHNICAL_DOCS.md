@@ -676,8 +676,8 @@ go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 #### Generated Files
 
 - **DeepCopy Methods**: `api/v1/zz_generated.deepcopy.go`
-- **CRD Definitions**: `helm/mcall-crd/templates/crds/*.yaml`
-- **RBAC Permissions**: `helm/mcall-crd/templates/rbac.yaml`
+- **CRD Definitions**: `helm/mcall-operator/templates/crds/*.yaml`
+- **RBAC Permissions**: `helm/mcall-operator/templates/rbac.yaml`
 
 ### Local Development Setup
 
@@ -847,7 +847,7 @@ make help
 
 ### Helm Chart Structure
 
-**Location**: `helm/mcall-crd/`
+**Location**: `helm/mcall-operator/`
 
 The Helm chart includes:
 - `Chart.yaml`: Chart metadata
@@ -860,7 +860,7 @@ The Helm chart includes:
 
 ### Environment-specific Values
 
-**Location**: `helm/mcall-crd/values-*.yaml`
+**Location**: `helm/mcall-operator/values-*.yaml`
 
 #### Development Configuration
 - Single replica for development
@@ -879,19 +879,19 @@ The Helm chart includes:
 **Location**: `ci/k8s.sh`
 
 Available deployment commands:
-- Development: `helm install mcall-crd-dev ./helm/mcall-crd --namespace mcall-dev --create-namespace --values ./helm/mcall-crd/values-dev.yaml`
+- Development: `helm install mcall-operator-dev ./helm/mcall-operator --namespace mcall-dev --create-namespace --values ./helm/mcall-operator/values-dev.yaml`
 
-- Staging: `helm install mcall-crd-staging ./helm/mcall-crd --namespace mcall-staging --create-namespace --values ./helm/mcall-crd/values-staging.yaml`
-- Production: `helm install mcall-crd-prod ./helm/mcall-crd --namespace mcall-system --create-namespace --values ./helm/mcall-crd/values.yaml --wait --timeout=10m`
+- Staging: `helm install mcall-operator-staging ./helm/mcall-operator --namespace mcall-staging --create-namespace --values ./helm/mcall-operator/values-staging.yaml`
+- Production: `helm install mcall-operator-prod ./helm/mcall-operator --namespace mcall-system --create-namespace --values ./helm/mcall-operator/values.yaml --wait --timeout=10m`
 
 ### Upgrade and Rollback
 
 **Location**: `ci/k8s.sh`
 
 Available upgrade/rollback commands:
-- Upgrade: `helm upgrade mcall-crd-prod ./helm/mcall-crd --namespace mcall-system --values ./helm/mcall-crd/values.yaml --set image.tag=1.1.0`
-- Rollback: `helm rollback mcall-crd-prod 1 -n mcall-system`
-- History: `helm history mcall-crd-prod -n mcall-system`
+- Upgrade: `helm upgrade mcall-operator-prod ./helm/mcall-operator --namespace mcall-system --values ./helm/mcall-operator/values.yaml --set image.tag=1.1.0`
+- Rollback: `helm rollback mcall-operator-prod 1 -n mcall-system`
+- History: `helm history mcall-operator-prod -n mcall-system`
 
 ## Jenkins CI/CD
 
@@ -948,7 +948,7 @@ The Jenkins pipeline includes:
 **Location**: Jenkins UI
 
 #### Pipeline Job Settings
-- Name: `mcall-crd-deployment`
+- Name: `mcall-operator-deployment`
 - Type: Pipeline
 - Definition: Pipeline script from SCM
 - SCM: Git
@@ -979,9 +979,9 @@ The Jenkins pipeline includes:
 
 #### 2. Controller Startup Issues
 **Commands**: See troubleshooting section in `README.md`
-- Check controller logs: `kubectl logs -n mcall-system deployment/mcall-crd`
-- Check RBAC permissions: `kubectl auth can-i create mcalltasks --as=system:serviceaccount:mcall-system:mcall-crd`
-- Check service account: `kubectl get serviceaccount mcall-crd -n mcall-system`
+- Check controller logs: `kubectl logs -n mcall-system deployment/mcall-operator`
+- Check RBAC permissions: `kubectl auth can-i create mcalltasks --as=system:serviceaccount:mcall-system:mcall-operator`
+- Check service account: `kubectl get serviceaccount mcall-operator -n mcall-system`
 
 #### 3. Task Execution Failures
 **Commands**: See troubleshooting section in `README.md`
@@ -991,9 +991,9 @@ The Jenkins pipeline includes:
 
 #### 4. Helm Chart Issues
 **Commands**: See troubleshooting section in `README.md`
-- Check Helm release status: `helm status mcall-crd -n mcall-system`
-- Check Helm values: `helm get values mcall-crd -n mcall-system`
-- Check Helm history: `helm history mcall-crd -n mcall-system`
+- Check Helm release status: `helm status mcall-operator -n mcall-system`
+- Check Helm values: `helm get values mcall-operator -n mcall-system`
+- Check Helm history: `helm history mcall-operator -n mcall-system`
 
 ### Debug Commands
 

@@ -46,12 +46,12 @@ fi
 print_status "Connected to cluster: $(kubectl config current-context)"
 
 # Test 1: Install the chart
-print_status "Test 1: Installing mcall-crd chart..."
-helm install test-mcall-crd ./helm/mcall-crd --create-namespace --namespace test-mcall-system
+print_status "Test 1: Installing mcall-operator chart..."
+helm install test-mcall-operator ./helm/mcall-operator --create-namespace --namespace test-mcall-system
 
 # Wait for deployment to be ready
 print_status "Waiting for deployment to be ready..."
-kubectl wait --for=condition=available --timeout=300s deployment/test-mcall-crd -n test-mcall-system
+kubectl wait --for=condition=available --timeout=300s deployment/test-mcall-operator -n test-mcall-system
 
 # Test 2: Create some test resources
 print_status "Test 2: Creating test mcalltask resources..."
@@ -89,7 +89,7 @@ kubectl get mcalltasks -n test-mcall-system
 
 # Test 3: Uninstall the chart (this should trigger cleanup)
 print_status "Test 3: Uninstalling chart (this should trigger cleanup)..."
-helm uninstall test-mcall-crd --namespace test-mcall-system
+helm uninstall test-mcall-operator --namespace test-mcall-system
 
 # Wait for cleanup to complete
 print_status "Waiting for cleanup to complete..."

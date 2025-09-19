@@ -6,7 +6,7 @@ export MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 export ELASTICSEARCH_PASSWORD="${ELASTICSEARCH_PASSWORD:-}"
 
 # Install with Helm
-helm install mcall-crd mcall/mcall-crd \
+helm install mcall-operator mcall/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values values.yaml \

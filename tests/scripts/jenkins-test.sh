@@ -41,7 +41,7 @@ print_status "VALUES_FILE: ${VALUES_FILE}"
 
 # Test 1: Helm Chart validation
 print_status "Test 1: Helm Chart validation"
-if helm lint ./helm/mcall-crd; then
+if helm lint ./helm/mcall-operator; then
     print_success "Helm chart linting passed"
 else
     print_error "Helm chart linting failed"
@@ -62,7 +62,7 @@ fi
 
 # Test 3: CRD validation
 print_status "Test 3: CRD validation"
-for crd in helm/mcall-crd/crds/*.yaml; do
+for crd in helm/mcall-operator/crds/*.yaml; do
     if kubectl apply --dry-run=client -f "${crd}" > /dev/null 2>&1; then
         print_success "CRD ${crd} validation passed"
     else

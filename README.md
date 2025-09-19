@@ -94,7 +94,7 @@ cd tz-mcall-operator
 helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
-  --values ./helm/mcall-crd/values-dev.yaml
+  --values ./helm/mcall-operator/values-dev.yaml
 
 # Verify installation
 kubectl get pods -n mcall-system
@@ -108,7 +108,7 @@ kubectl get crd | grep mcall
 helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
-  --values ./helm/mcall-crd/values-dev.yaml
+  --values ./helm/mcall-operator/values-dev.yaml
 ```
 
 ### 2. Run a Command
@@ -458,7 +458,7 @@ make help
 helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-dev \
   --create-namespace \
-  --values ./helm/mcall-crd/values-dev.yaml
+  --values ./helm/mcall-operator/values-dev.yaml
 ```
 
 ### Production
@@ -466,7 +466,7 @@ helm install mcall-operator ./helm/mcall-operator \
 helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
-  --values ./helm/mcall-crd/values.yaml
+  --values ./helm/mcall-operator/values.yaml
 ```
 
 ## Monitoring
@@ -481,7 +481,7 @@ kubectl get mcallworkflows
 kubectl get pods -n mcall-system
 
 # View logs
-kubectl logs -n mcall-system -l app.kubernetes.io/name=mcall-crd
+kubectl logs -n mcall-system -l app.kubernetes.io/name=mcall-operator
 ```
 
 ### Task Status
@@ -498,7 +498,7 @@ kubectl logs -n mcall-system -l app.kubernetes.io/name=mcall-crd
 kubectl describe mcalltask <task-name>
 
 # Check controller logs
-kubectl logs -n mcall-system deployment/mcall-crd
+kubectl logs -n mcall-system deployment/mcall-operator
 ```
 
 ### Common Issues

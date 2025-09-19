@@ -1,4 +1,4 @@
-# mcall-crd Helm Chart
+# mcall-operator Helm Chart
 
 A Helm chart for deploying the mcall CRD-based task execution system on Kubernetes.
 
@@ -21,16 +21,16 @@ helm repo update
 
 ```bash
 # Install with default values
-helm install mcall-crd mcall/mcall-crd
+helm install mcall-operator mcall/mcall-operator
 
 # Install with custom values
-helm install mcall-crd mcall/mcall-crd \
+helm install mcall-operator mcall/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values values.yaml
 
 # Install for development
-helm install mcall-crd-dev mcall/mcall-crd \
+helm install mcall-operator-dev mcall/mcall-operator \
   --namespace mcall-dev \
   --create-namespace \
   --values values-dev.yaml
@@ -61,7 +61,7 @@ export ELASTICSEARCH_PASSWORD="your-elasticsearch-password"
 
 **Or use Helm command directly:**
 ```bash
-helm install mcall-crd mcall/mcall-crd \
+helm install mcall-operator mcall/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values values.yaml \
@@ -108,10 +108,10 @@ The following table lists the configurable parameters and their default values.
 ### Development Environment
 
 ```bash
-helm install mcall-crd-dev ./helm/mcall-crd \
+helm install mcall-operator-dev ./helm/mcall-operator \
   --namespace mcall-dev \
   --create-namespace \
-  --values ./helm/mcall-crd/values-dev.yaml
+  --values ./helm/mcall-operator/values-dev.yaml
 ```
 
 ### Production Environment
@@ -120,11 +120,11 @@ helm install mcall-crd-dev ./helm/mcall-crd \
 # Install cert-manager first
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
 
-# Install mcall-crd
-helm install mcall-crd-prod ./helm/mcall-crd \
+# Install mcall-operator
+helm install mcall-operator-prod ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
-  --values ./helm/mcall-crd/values.yaml \
+  --values ./helm/mcall-operator/values.yaml \
   --wait \
   --timeout=10m
 ```
@@ -132,7 +132,7 @@ helm install mcall-crd-prod ./helm/mcall-crd \
 ### Custom Configuration
 
 ```bash
-helm install mcall-crd ./helm/mcall-crd \
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --set controller.replicas=5 \
@@ -146,14 +146,14 @@ helm install mcall-crd ./helm/mcall-crd \
 
 ```bash
 # Upgrade to latest version
-helm upgrade mcall-crd mcall/mcall-crd
+helm upgrade mcall-operator mcall/mcall-operator
 
 # Upgrade with custom values
-helm upgrade mcall-crd mcall/mcall-crd \
+helm upgrade mcall-operator mcall/mcall-operator \
   --values values.yaml
 
 # Upgrade specific image tag
-helm upgrade mcall-crd mcall/mcall-crd \
+helm upgrade mcall-operator mcall/mcall-operator \
   --set image.tag=1.1.0
 ```
 
@@ -165,7 +165,7 @@ The chart includes a pre-delete hook that automatically removes finalizers from 
 
 ```bash
 # Uninstall with automatic cleanup
-helm uninstall mcall-crd
+helm uninstall mcall-operator
 ```
 
 ### Manual Cleanup
@@ -218,7 +218,7 @@ serviceMonitor:
   enabled: true
   namespace: monitoring
   labels:
-    app.kubernetes.io/name: mcall-crd
+    app.kubernetes.io/name: mcall-operator
   interval: 30s
   timeout: 10s
   path: /metrics
@@ -228,7 +228,7 @@ serviceMonitor:
 
 ```bash
 # Check pod health
-kubectl get pods -n mcall-system -l app.kubernetes.io/name=mcall-crd
+kubectl get pods -n mcall-system -l app.kubernetes.io/name=mcall-operator
 
 # Check service health
 kubectl get svc -n mcall-system
@@ -249,21 +249,21 @@ kubectl get crd | grep mcall
 
 2. **Webhook Certificate Issues**
    ```bash
-   kubectl get secret mcall-crd-webhook-certs -n mcall-system
+   kubectl get secret mcall-operator-webhook-certs -n mcall-system
    kubectl describe validatingwebhookconfigurations
    ```
 
 3. **Resource Constraints**
    ```bash
    kubectl top pods -n mcall-system
-   kubectl describe pod -n mcall-system -l app.kubernetes.io/name=mcall-crd
+   kubectl describe pod -n mcall-system -l app.kubernetes.io/name=mcall-operator
    ```
 
 ### Debug Mode
 
 ```bash
 # Enable debug logging
-helm upgrade mcall-crd ./helm/mcall-crd \
+helm upgrade mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --set controller.env.DEBUG=true \
   --set controller.env.LOG_LEVEL=debug

@@ -85,9 +85,9 @@ cleanup_existing_resources() {
     fi
     
     # 2. Force delete mcall-dev Helm release (including all states)
-    if helm list -n mcall-dev --all --short | grep -q mcall-crd-dev; then
+    if helm list -n mcall-dev --all --short | grep -q mcall-operator-dev; then
         print_status "Force removing Helm release (including pending/uninstalling)..."
-        helm uninstall mcall-crd-dev -n mcall-dev --no-hooks 2>/dev/null || true
+        helm uninstall mcall-operator-dev -n mcall-dev --no-hooks 2>/dev/null || true
     fi
     
     # 3. Force delete mcall-dev namespace
@@ -153,7 +153,7 @@ print_success "Kubernetes cluster is accessible"
 
 # 3. Validate Helm Chart
 print_status "Linting Helm chart..."
-if helm lint ./helm/mcall-crd; then
+if helm lint ./helm/mcall-operator; then
     print_success "Helm chart linting passed"
 else
     print_error "Helm chart linting failed"
@@ -194,7 +194,7 @@ fi
 
 # 5. Test Chart template rendering
 print_status "Testing chart template rendering..."
-if helm template mcall-crd-dev ./helm/mcall-crd --values ./helm/mcall-crd/values-dev.yaml > /dev/null; then
+if helm template mcall-operator-dev ./helm/mcall-operator --values ./helm/mcall-operator/values-dev.yaml > /dev/null; then
     print_success "Chart template rendering successful"
 else
     print_error "Chart template rendering failed"
@@ -204,18 +204,18 @@ fi
 # 6. Install CRDs
 print_status "Installing CRDs..."
 # Generate CRD files by rendering Helm templates
-helm template mcall-crd-dev ./helm/mcall-crd \
-    --values ./helm/mcall-crd/values-dev.yaml \
+helm template mcall-operator-dev ./helm/mcall-operator \
+    --values ./helm/mcall-operator/values-dev.yaml \
     --show-only templates/crds/mcalltask-crd.yaml \
     --show-only templates/crds/mcallworkflow-crd.yaml \
- > /tmp/mcall-crds.yaml
+ > /tmp/mcall-operators.yaml
 
-if kubectl apply -f /tmp/mcall-crds.yaml; then
+if kubectl apply -f /tmp/mcall-operators.yaml; then
     print_success "CRDs installed successfully"
-    rm -f /tmp/mcall-crds.yaml
+    rm -f /tmp/mcall-operators.yaml
 else
     print_error "Failed to install CRDs"
-    rm -f /tmp/mcall-crds.yaml
+    rm -f /tmp/mcall-operators.yaml
     exit 1
 fi
 
@@ -241,9 +241,9 @@ sleep 2
 
 # 10. Install Helm Chart (for development environment)
 print_status "Installing Helm chart (development mode)..."
-if helm install mcall-crd-dev ./helm/mcall-crd \
+if helm install mcall-operator-dev ./helm/mcall-operator \
     --namespace mcall-dev \
-    --values ./helm/mcall-crd/values-dev.yaml \
+    --values ./helm/mcall-operator/values-dev.yaml \
     --wait --timeout=5m; then
     print_success "Helm chart installed successfully"
 else
@@ -256,9 +256,9 @@ else
     kubectl create namespace mcall-dev
     sleep 2
     
-    if helm install mcall-crd-dev ./helm/mcall-crd \
+    if helm install mcall-operator-dev ./helm/mcall-operator \
         --namespace mcall-dev \
-        --values ./helm/mcall-crd/values-dev.yaml \
+        --values ./helm/mcall-operator/values-dev.yaml \
         --wait --timeout=5m; then
         print_success "Helm chart installed successfully on retry"
     else
@@ -268,19 +268,19 @@ else
         # Manually create resources
         print_status "Creating resources manually..."
         # Install CRDs first
-        helm template mcall-crd-dev ./helm/mcall-crd \
-            --values ./helm/mcall-crd/values-dev.yaml \
+        helm template mcall-operator-dev ./helm/mcall-operator \
+            --values ./helm/mcall-operator/values-dev.yaml \
             --show-only templates/crds/mcalltask-crd.yaml \
             --show-only templates/crds/mcallworkflow-crd.yaml \
-         > /tmp/mcall-crds.yaml
-        kubectl apply -f /tmp/mcall-crds.yaml
-        rm -f /tmp/mcall-crds.yaml
+         > /tmp/mcall-operators.yaml
+        kubectl apply -f /tmp/mcall-operators.yaml
+        rm -f /tmp/mcall-operators.yaml
         
         # Apply by rendering Helm templates
         print_status "Rendering Helm templates..."
-        helm template mcall-crd-dev ./helm/mcall-crd \
+        helm template mcall-operator-dev ./helm/mcall-operator \
             --namespace mcall-dev \
-            --values ./helm/mcall-crd/values-dev.yaml > /tmp/mcall-resources.yaml
+            --values ./helm/mcall-operator/values-dev.yaml > /tmp/mcall-resources.yaml
         
         # Apply rendered resources (excluding namespace)
         print_status "Applying rendered resources..."
@@ -328,7 +328,7 @@ echo ""
 print_success "🎉 Local development setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Check controller logs: kubectl logs -n mcall-dev -l app.kubernetes.io/name=mcall-crd -f"
+echo "1. Check controller logs: kubectl logs -n mcall-dev -l app.kubernetes.io/name=mcall-operator -f"
 echo "2. Monitor McallTasks: kubectl get mcalltasks -w"
 echo "3. Test with: kubectl apply -f examples/mcalltask-example.yaml"
-echo "4. Clean up: helm uninstall mcall-crd-dev -n mcall-dev"
+echo "4. Clean up: helm uninstall mcall-operator-dev -n mcall-dev"
