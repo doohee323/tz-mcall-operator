@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -124,7 +125,32 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 }
 
 func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, workflow *mcallv1.McallWorkflow) (ctrl.Result, error) {
-	// Clean up resources if needed
+	log := log.FromContext(ctx)
+
+	// For scheduled workflows, clean up completed tasks and reset to Pending for next run
+	if workflow.Spec.Schedule != "" {
+		log.Info("Cleaning up completed scheduled workflow", "workflow", workflow.Name, "phase", workflow.Status.Phase)
+
+		// Delete workflow-specific task instances (not template tasks)
+		if err := r.deleteWorkflowTasks(ctx, workflow); err != nil {
+			log.Error(err, "Failed to delete workflow tasks", "workflow", workflow.Name)
+			return ctrl.Result{}, err
+		}
+
+		// Reset workflow status to Pending for next scheduled run
+		workflow.Status.Phase = mcallv1.McallWorkflowPhasePending
+		workflow.Status.StartTime = nil
+		workflow.Status.CompletionTime = nil
+		if err := r.Status().Update(ctx, workflow); err != nil {
+			log.Error(err, "Failed to reset workflow status", "workflow", workflow.Name)
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Workflow reset to Pending for next scheduled run", "workflow", workflow.Name)
+		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
+	}
+
+	// For non-scheduled workflows, just clean up
 	return ctrl.Result{}, nil
 }
 
@@ -178,6 +204,43 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 		}
 
 		log.Info("Created task for workflow", "workflow", workflow.Name, "task", taskSpec.Name, "originalTask", taskRef.Name, "dependencies", taskSpec.Dependencies)
+	}
+
+	return nil
+}
+
+func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workflow *mcallv1.McallWorkflow) error {
+	log := log.FromContext(ctx)
+
+	// Delete all workflow-specific task instances (not template tasks)
+	// Template tasks have "-template" suffix and should be preserved
+	for _, taskSpec := range workflow.Spec.Tasks {
+		taskName := fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name)
+		
+		// Skip if it's a template task
+		if strings.HasSuffix(taskName, "-template") {
+			continue
+		}
+
+		task := &mcallv1.McallTask{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      taskName,
+			Namespace: workflow.Namespace,
+		}, task); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				log.Error(err, "Failed to get workflow task for deletion", "workflow", workflow.Name, "task", taskName)
+				return err
+			}
+			// Task already deleted, continue
+			continue
+		}
+
+		if err := r.Delete(ctx, task); err != nil {
+			log.Error(err, "Failed to delete workflow task", "workflow", workflow.Name, "task", taskName)
+			return err
+		}
+
+		log.Info("Deleted workflow task", "workflow", workflow.Name, "task", taskName)
 	}
 
 	return nil
