@@ -219,22 +219,25 @@ export class KubernetesClient {
   async createWorkflow(params: WorkflowParams): Promise<any> {
     const namespace = this.getNamespace(params.namespace);
     
-    // First create individual tasks if they don't exist
+    // First create template tasks if they don't exist
     const taskRefs = [];
     for (const task of params.tasks) {
+      // Template task name with -template suffix
+      const templateTaskName = `${params.name}-${task.name}-template`;
+      
       taskRefs.push({
         name: task.name,
         taskRef: {
-          name: `${params.name}-${task.name}`,
+          name: templateTaskName,
           namespace: namespace,
         },
         ...(task.dependencies && { dependencies: task.dependencies }),
       });
 
-      // Create the actual McallTask
+      // Create the template McallTask (used as a template for workflow execution)
       try {
         await this.createTask({
-          name: `${params.name}-${task.name}`,
+          name: templateTaskName,
           namespace: namespace,
           type: task.type,
           input: task.input,
@@ -242,7 +245,7 @@ export class KubernetesClient {
       } catch (error: any) {
         // Task might already exist, continue
         if (!error.message.includes("already exists")) {
-          console.error(`Warning: Failed to create task ${task.name}:`, error.message);
+          console.error(`Warning: Failed to create template task ${task.name}:`, error.message);
         }
       }
     }
