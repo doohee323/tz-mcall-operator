@@ -472,27 +472,15 @@ func executeCommand(command string, timeout time.Duration) (string, error) {
 		return "", fmt.Errorf("empty command")
 	}
 
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
-		return "", fmt.Errorf("empty command")
-	}
-
-	cmdName := parts[0]
-	args := parts[1:]
-
-	// Clean up arguments (from original mcall.go)
-	for i := range args {
-		if args[i] == "'Content-Type_application/json'" {
-			args[i] = "'Content-Type: application/json'"
-		} else {
-			args[i] = strings.Replace(args[i], "`", " ", -1)
-		}
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, cmdName, args...)
+	// Execute command through bash shell to support:
+	// - Redirections (>, >>, |)
+	// - Variable substitution ($VAR, $(command))
+	// - Multiple commands with && or ;
+	// - Other shell features
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", command)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
