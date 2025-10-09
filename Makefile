@@ -82,14 +82,27 @@ build:
 	@echo "=== Building controller binary ==="
 	go build -o bin/controller ./cmd/controller
 
-# Build Docker image
+# Build Docker image (operator)
 build-docker:
-	@echo "=== Building Docker image ==="
+	@echo "=== Building Operator Docker image ==="
 	@if ! command -v docker &> /dev/null; then \
 		echo "Error: Docker is required for image build"; \
 		exit 1; \
 	fi
-	docker build -f docker/Dockerfile -t mcall-controller:latest .
+	docker build -f docker/Dockerfile -t doohee323/tz-mcall-operator:latest .
+
+# Build MCP Server Docker image
+build-mcp-docker:
+	@echo "=== Building MCP Server Docker image ==="
+	@if ! command -v docker &> /dev/null; then \
+		echo "Error: Docker is required for image build"; \
+		exit 1; \
+	fi
+	docker build -f mcp-server/Dockerfile -t doohee323/mcall-operator-mcp-server:dev ./mcp-server
+
+# Build all Docker images
+build-docker-all: build-docker build-mcp-docker
+	@echo "=== All Docker images built ==="
 
 # Deploy to cluster (requires kubectl and helm)
 deploy:
@@ -133,7 +146,9 @@ clean:
 clean-docker:
 	@echo "=== Cleaning Docker images ==="
 	@if command -v docker &> /dev/null; then \
-		docker rmi mcall-controller:latest 2>/dev/null || true; \
+		docker rmi doohee323/tz-mcall-operator:latest 2>/dev/null || true; \
+		docker rmi doohee323/mcall-operator-mcp-server:dev 2>/dev/null || true; \
+		docker rmi doohee323/mcall-operator-mcp-server:latest 2>/dev/null || true; \
 		docker system prune -f; \
 	fi
 
@@ -188,6 +203,72 @@ generate-rbac:
 	controller-gen rbac:roleName=manager-role paths=./controller/... output:rbac:dir=./helm/mcall-operator/templates
 
 # =============================================================================
+# HELM CHART TESTING
+# =============================================================================
+
+# Lint Helm chart
+helm-lint:
+	@echo "=== Linting Helm chart ==="
+	helm lint ./helm/mcall-operator -f ./helm/mcall-operator/values-dev.yaml
+
+# Render Helm template
+helm-template:
+	@echo "=== Rendering Helm template ==="
+	helm template test-release ./helm/mcall-operator \
+		-f ./helm/mcall-operator/values-dev.yaml \
+		> /tmp/helm-rendered.yaml
+	@echo "✅ Output saved to /tmp/helm-rendered.yaml"
+	@echo ""
+	@echo "Preview (first 50 lines):"
+	@head -50 /tmp/helm-rendered.yaml
+
+# Helm dry-run
+helm-dry-run:
+	@echo "=== Helm dry-run ==="
+	@if ! command -v kubectl &> /dev/null; then \
+		echo "⚠️  kubectl not found, skipping dry-run"; \
+		echo "💡 Install kubectl to run dry-run tests"; \
+		exit 0; \
+	fi
+	helm install test-release ./helm/mcall-operator \
+		-f ./helm/mcall-operator/values-dev.yaml \
+		--dry-run --debug \
+		--namespace mcall-dev
+
+# Package Helm chart
+helm-package:
+	@echo "=== Packaging Helm chart ==="
+	mkdir -p dist
+	helm package ./helm/mcall-operator -d ./dist
+	@echo "✅ Package created in ./dist/"
+	@ls -lh ./dist/*.tgz 2>/dev/null || echo "No packages found"
+
+# Run all Helm tests
+helm-test: helm-lint helm-template
+	@echo "✅ All Helm tests passed"
+
+# Simulate Jenkins pipeline locally
+jenkins-sim:
+	@echo "=== Simulating Jenkins pipeline locally ==="
+	@if ! command -v docker &> /dev/null; then \
+		echo "⚠️  Docker not found, running without image build"; \
+		chmod +x scripts/local-jenkins-test.sh; \
+		./scripts/local-jenkins-test.sh local-test dev true; \
+	else \
+		chmod +x scripts/local-jenkins-test.sh; \
+		./scripts/local-jenkins-test.sh local-test dev; \
+	fi
+
+# Simulate Jenkins pipeline with custom parameters
+jenkins-sim-custom:
+	@echo "=== Simulating Jenkins pipeline with custom parameters ==="
+	@read -p "Enter BUILD_NUMBER (default: local-test): " build_num; \
+	read -p "Enter GIT_BRANCH (default: dev): " git_branch; \
+	read -p "Skip Docker build? (true/false, default: false): " skip_docker; \
+	chmod +x scripts/local-jenkins-test.sh; \
+	./scripts/local-jenkins-test.sh $${build_num:-local-test} $${git_branch:-dev} $${skip_docker:-false}
+
+# =============================================================================
 # UTILITY COMMANDS
 # =============================================================================
 
@@ -228,10 +309,21 @@ help:
 	@echo ""
 	@echo "BUILD & DEPLOYMENT:"
 	@echo "  build              - Build controller binary"
-	@echo "  build-docker       - Build Docker image"
+	@echo "  build-docker       - Build Operator Docker image"
+	@echo "  build-mcp-docker   - Build MCP Server Docker image"
+	@echo "  build-docker-all   - Build all Docker images"
 	@echo "  deploy             - Deploy to cluster"
 	@echo "  deploy-dev         - Deploy to dev environment"
 	@echo "  deploy-staging     - Deploy to staging environment"
+	@echo ""
+	@echo "HELM CHART TESTING:"
+	@echo "  helm-lint          - Lint Helm chart"
+	@echo "  helm-template      - Render Helm template to file"
+	@echo "  helm-dry-run       - Run Helm dry-run (requires kubectl)"
+	@echo "  helm-package       - Package Helm chart to tgz"
+	@echo "  helm-test          - Run all Helm tests"
+	@echo "  jenkins-sim        - Simulate Jenkins pipeline locally"
+	@echo "  jenkins-sim-custom - Simulate Jenkins with custom parameters"
 	@echo ""
 	@echo "CLEANUP:"
 	@echo "  clean              - Clean test results and build artifacts"

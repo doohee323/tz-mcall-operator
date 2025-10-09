@@ -33,6 +33,7 @@
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [MCP Server](#mcp-server)
 - [CRD Types](#crd-types)
 - [Usage Examples](#usage-examples)
 - [Development & Testing](#development--testing)
@@ -143,6 +144,61 @@ kubectl apply -f task.yaml
 kubectl get mcalltasks
 kubectl describe mcalltask hello-world
 ```
+
+## 🤖 MCP Server
+
+**NEW!** Control your Kubernetes tasks and workflows through AI assistants using Model Context Protocol (MCP).
+
+### What is MCP Server?
+
+The MCP Server enables AI assistants (like Claude, Cursor AI) to interact with tz-mcall-operator. You can create tasks, workflows, and monitor executions through natural language!
+
+### Quick Setup
+
+```bash
+# Enable MCP Server with Helm
+helm upgrade --install mcall-operator ./helm/mcall-operator \
+  --namespace mcall-system \
+  --create-namespace \
+  --set mcpServer.enabled=true \
+  --set mcpServer.ingress.enabled=true \
+  --set mcpServer.ingress.hosts[0].host=mcp.drillquiz.com
+```
+
+### Features
+
+- ✅ **Natural Language Control**: "Create a daily backup task at 2 AM"
+- ✅ **Task Management**: Create, monitor, and manage tasks through AI
+- ✅ **Workflow Orchestration**: Build complex workflows with dependencies
+- ✅ **Real-time Status**: Check task execution and logs
+- ✅ **Secure**: Kubernetes RBAC-based access control
+
+### Example Usage
+
+```
+You: "Create a health check task for https://api.example.com every 5 minutes"
+
+AI: I'll create that for you.
+    [automatically creates McallTask with proper configuration]
+
+You: "Show me the status"
+
+AI: [retrieves and displays task status]
+```
+
+### Documentation
+
+- [MCP Server Guide](./MCP_SERVER_GUIDE.md) - Complete guide with integration details
+- [MCP Server Quick Start](./mcp-server/QUICKSTART.md) - Get started in 5 minutes
+- [MCP Server Deployment](./mcp-server/DEPLOYMENT.md) - Detailed deployment instructions
+- [Helm Chart Guide](./helm/mcall-operator/README.md) - Helm chart documentation and local testing
+
+### Access
+
+After deployment with ingress enabled:
+- **Production**: `https://mcp.drillquiz.com`
+- **Development**: `https://mcp-dev.drillquiz.com` (with values-dev.yaml)
+- **Local**: `http://localhost:3000` (port-forward)
 
 ## Real Examples
 

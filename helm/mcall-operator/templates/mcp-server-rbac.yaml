@@ -1,0 +1,57 @@
+{{- if .Values.mcpServer.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "mcall-operator.fullname" . }}-mcp-server
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "mcall-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "mcall-operator.fullname" . }}-mcp-server
+  labels:
+    {{- include "mcall-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+rules:
+# McallTask permissions
+- apiGroups: ["mcall.tz.io"]
+  resources: ["mcalltasks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["mcall.tz.io"]
+  resources: ["mcalltasks/status"]
+  verbs: ["get", "list", "watch"]
+# McallWorkflow permissions
+- apiGroups: ["mcall.tz.io"]
+  resources: ["mcallworkflows"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["mcall.tz.io"]
+  resources: ["mcallworkflows/status"]
+  verbs: ["get", "list", "watch"]
+# Pod permissions (for log retrieval)
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "mcall-operator.fullname" . }}-mcp-server
+  labels:
+    {{- include "mcall-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "mcall-operator.fullname" . }}-mcp-server
+subjects:
+- kind: ServiceAccount
+  name: {{ include "mcall-operator.fullname" . }}-mcp-server
+  namespace: {{ .Values.namespace.name }}
+{{- end }}
+

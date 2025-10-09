@@ -214,6 +214,15 @@ deploy_helm_chart() {
     kubectl annotate namespace ${NAMESPACE} meta.helm.sh/release-name=${HELM_RELEASE_NAME} --overwrite
     kubectl annotate namespace ${NAMESPACE} meta.helm.sh/release-namespace=${NAMESPACE} --overwrite
     
+    # Determine MCP server image tag based on branch
+    if [ "${GIT_BRANCH}" = "main" ]; then
+        MCP_IMAGE_TAG="latest"
+    elif [ "${GIT_BRANCH}" = "qa" ]; then
+        MCP_IMAGE_TAG="staging"
+    else
+        MCP_IMAGE_TAG="dev"
+    fi
+    
     # Install or upgrade Helm chart with staging postfix
     HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     HELM_BIN="/tmp/helm/linux-amd64/helm"
@@ -223,6 +232,8 @@ deploy_helm_chart() {
             --values "helm/mcall-operator/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
             --set image.repository="doohee323/tz-mcall-operator" \
+            --set mcpServer.image.tag="${BUILD_NUMBER}" \
+            --set mcpServer.image.repository="doohee323/mcall-operator-mcp-server" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
@@ -235,6 +246,8 @@ deploy_helm_chart() {
             --values "helm/mcall-operator/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
             --set image.repository="doohee323/tz-mcall-operator" \
+            --set mcpServer.image.tag="${BUILD_NUMBER}" \
+            --set mcpServer.image.repository="doohee323/mcall-operator-mcp-server" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \

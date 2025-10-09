@@ -1,0 +1,21 @@
+{{- if .Values.mcpServer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mcall-operator.fullname" . }}-mcp-server
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "mcall-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  type: {{ .Values.mcpServer.service.type }}
+  ports:
+  - port: {{ .Values.mcpServer.service.port }}
+    targetPort: {{ .Values.mcpServer.service.targetPort }}
+    protocol: TCP
+    name: http
+  selector:
+    {{- include "mcall-operator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+{{- end }}
+

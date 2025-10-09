@@ -133,4 +133,35 @@ alerting:
   slack:
     enabled: false
 
+# MCP Server configuration (dev environment)
+mcpServer:
+  enabled: true
+  image:
+    repository: doohee323/mcall-operator-mcp-server
+    tag: "dev"  # Will be overridden by Jenkins BUILD_NUMBER
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  env:
+    NODE_ENV: development
+    DEFAULT_NAMESPACE: mcall-dev
+    DEBUG: "true"
+  ingress:
+    enabled: true
+    hosts:
+      - host: mcp-dev.drillquiz.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: mcp-server-dev-tls
+        hosts:
+          - mcp-dev.drillquiz.com
+
 
