@@ -212,37 +212,31 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workflow *mcallv1.McallWorkflow) error {
 	log := log.FromContext(ctx)
 
-	// Delete all workflow-specific task instances (not template tasks)
-	// Template tasks have "-template" suffix and should be preserved
-	for _, taskSpec := range workflow.Spec.Tasks {
-		taskName := fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name)
-		
-		// Skip if it's a template task
-		if strings.HasSuffix(taskName, "-template") {
+	// Delete all workflow-specific task instances using labels
+	// Template tasks should NOT have the workflow label
+	var tasks mcallv1.McallTaskList
+	if err := r.List(ctx, &tasks, 
+		client.InNamespace(workflow.Namespace), 
+		client.MatchingLabels{"mcall.tz.io/workflow": workflow.Name}); err != nil {
+		log.Error(err, "Failed to list workflow tasks for deletion", "workflow", workflow.Name)
+		return err
+	}
+
+	for _, task := range tasks.Items {
+		// Skip template tasks (they have -template suffix)
+		if strings.HasSuffix(task.Name, "-template") {
 			continue
 		}
 
-		task := &mcallv1.McallTask{}
-		if err := r.Get(ctx, types.NamespacedName{
-			Name:      taskName,
-			Namespace: workflow.Namespace,
-		}, task); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				log.Error(err, "Failed to get workflow task for deletion", "workflow", workflow.Name, "task", taskName)
-				return err
-			}
-			// Task already deleted, continue
-			continue
-		}
-
-		if err := r.Delete(ctx, task); err != nil {
-			log.Error(err, "Failed to delete workflow task", "workflow", workflow.Name, "task", taskName)
+		if err := r.Delete(ctx, &task); err != nil {
+			log.Error(err, "Failed to delete workflow task", "workflow", workflow.Name, "task", task.Name)
 			return err
 		}
 
-		log.Info("Deleted workflow task", "workflow", workflow.Name, "task", taskName)
+		log.Info("Deleted workflow task", "workflow", workflow.Name, "task", task.Name)
 	}
 
+	log.Info("Cleaned up workflow tasks", "workflow", workflow.Name, "deletedCount", len(tasks.Items))
 	return nil
 }
 
