@@ -22,8 +22,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Final stage
 FROM alpine:3.18
 
-# Install necessary packages
-RUN apk add --no-cache ca-certificates tzdata wget
+# Install necessary packages (including bash and coreutils for proper command execution)
+RUN apk add --no-cache ca-certificates tzdata wget bash coreutils
 
 # Create non-root user
 RUN addgroup -g 1000 mcall && \
