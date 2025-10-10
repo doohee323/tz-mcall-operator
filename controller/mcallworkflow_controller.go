@@ -258,12 +258,47 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					return getErr
 				}
 
-				if delErr := r.Delete(ctx, existingTask); delErr != nil {
-					log.Error(delErr, "Failed to delete existing task", "workflow", workflow.Name, "task", taskSpec.Name)
-					return delErr
+				// Check if task is already being deleted
+				if existingTask.DeletionTimestamp != nil {
+					log.Info("Task is already being deleted, waiting for deletion to complete", "workflow", workflow.Name, "task", taskSpec.Name)
+					// Don't delete again, just wait for it to be removed
+				} else {
+					// Delete the existing task
+					if delErr := r.Delete(ctx, existingTask); delErr != nil && !apierrors.IsNotFound(delErr) {
+						log.Error(delErr, "Failed to delete existing task", "workflow", workflow.Name, "task", taskSpec.Name)
+						return delErr
+					}
 				}
 
-				// Recreate task
+				// Wait for task to be fully deleted
+				log.Info("Waiting for task deletion to complete", "workflow", workflow.Name, "task", taskSpec.Name)
+				timeout := time.After(30 * time.Second)
+				ticker := time.NewTicker(500 * time.Millisecond)
+				defer ticker.Stop()
+
+				taskDeleted := false
+				for !taskDeleted {
+					select {
+					case <-timeout:
+						log.Error(fmt.Errorf("timeout"), "Timeout waiting for task deletion", "workflow", workflow.Name, "task", taskSpec.Name)
+						return fmt.Errorf("timeout waiting for task %s deletion", taskSpec.Name)
+					case <-ticker.C:
+						checkTask := &mcallv1.McallTask{}
+						if getErr := r.Get(ctx, types.NamespacedName{Name: task.Name, Namespace: task.Namespace}, checkTask); getErr != nil {
+							if apierrors.IsNotFound(getErr) {
+								// Task is fully deleted
+								taskDeleted = true
+								log.Info("Task deletion completed", "workflow", workflow.Name, "task", taskSpec.Name)
+							} else {
+								log.Error(getErr, "Error checking task deletion status", "workflow", workflow.Name, "task", taskSpec.Name)
+								return getErr
+							}
+						}
+						// Task still exists, continue waiting
+					}
+				}
+
+				// Now recreate task
 				if createErr := r.Create(ctx, task); createErr != nil {
 					log.Error(createErr, "Failed to recreate task", "workflow", workflow.Name, "task", taskSpec.Name)
 					return createErr
