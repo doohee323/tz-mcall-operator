@@ -217,50 +217,16 @@ deploy_crds() {
                 echo "  ⚠️  File does NOT contain 'inputTemplate' field"
             fi
             
-            # Check if CRD exists in cluster
-            if kubectl get crd "$CRD_NAME" >/dev/null 2>&1; then
-                echo "  📊 CRD exists in cluster"
-                
-                # Show current fields in cluster CRD
-                echo "  📋 Current fields in cluster CRD:"
-                kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
-                    python3 -c "import sys, json; data = json.load(sys.stdin); print('    Fields:', ', '.join(sorted(data.keys())[:5]), '...')" 2>/dev/null || echo "    (Could not read current fields)"
-                
-                # Delete existing CRD first
-                echo "  🗑️  Deleting existing CRD..."
-                kubectl delete crd "$CRD_NAME" --timeout=30s 2>&1 | sed 's/^/    /'
-                
-                # Wait for deletion to complete
-                echo "  ⏳ Waiting for CRD deletion to complete..."
-                TIMEOUT=30
-                COUNTER=0
-                while kubectl get crd "$CRD_NAME" >/dev/null 2>&1 && [ $COUNTER -lt $TIMEOUT ]; do
-                    sleep 2
-                    COUNTER=$((COUNTER + 2))
-                done
-                
-                if kubectl get crd "$CRD_NAME" >/dev/null 2>&1; then
-                    echo "  ⚠️  CRD deletion timed out, force removing finalizers..."
-                    kubectl patch crd "$CRD_NAME" --type json -p='[{"op": "remove", "path": "/metadata/finalizers"}]' 2>&1 | sed 's/^/    /' || true
-                    kubectl delete crd "$CRD_NAME" --force --grace-period=0 2>&1 | sed 's/^/    /' || true
-                    sleep 3
-                fi
-                
-                echo "  ✅ Deletion completed"
-            else
-                echo "  📦 CRD doesn't exist in cluster"
-            fi
-            
-            # Create new CRD (POSIX sh compatible)
-            echo "  📦 Creating CRD with new schema..."
+            # Apply or replace CRD (avoids API server schema cache issues)
+            echo "  📦 Applying CRD with new schema..."
             # Save output to temp file and check exit code
             CREATE_OUTPUT=$(mktemp)
-            if kubectl create -f "$crd_file" > "$CREATE_OUTPUT" 2>&1; then
+            if kubectl apply -f "$crd_file" > "$CREATE_OUTPUT" 2>&1; then
                 # Indent output
                 sed 's/^/    /' "$CREATE_OUTPUT"
                 rm -f "$CREATE_OUTPUT"
                 
-                echo "  ✅ Create succeeded"
+                echo "  ✅ Apply succeeded"
                 
                 # Add Helm metadata to CRD for ownership
                 echo "  🏷️  Adding Helm metadata to CRD..."
@@ -282,7 +248,7 @@ deploy_crds() {
                 # Show error output
                 sed 's/^/    /' "$CREATE_OUTPUT"
                 rm -f "$CREATE_OUTPUT"
-                echo "  ❌ Create failed for $CRD_NAME"
+                echo "  ❌ Apply failed for $CRD_NAME"
                 return 1
             fi
         done
