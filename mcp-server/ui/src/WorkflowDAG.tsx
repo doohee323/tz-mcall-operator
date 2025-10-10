@@ -9,7 +9,6 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { io } from 'socket.io-client';
 
 interface WorkflowDAGProps {
   namespace: string;
@@ -95,7 +94,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   // Fetch initial DAG
   const fetchDAG = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/workflows/${namespace}/${workflowName}/dag`);
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiUrl}/api/workflows/${namespace}/${workflowName}/dag`);
       const data = await response.json();
 
       if (data.success) {
@@ -165,92 +165,21 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     }
   }, [namespace, workflowName, setNodes, setEdges]);
 
-  // Setup WebSocket connection
+  // Setup auto-refresh with polling (simple HTTP polling instead of WebSocket)
   useEffect(() => {
-    const newSocket = io('http://localhost:3000', {
-      transports: ['websocket', 'polling'],
-    });
-
-    newSocket.on('connect', () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-      newSocket.emit('watch-workflow', { namespace, name: workflowName });
-    });
-
-    newSocket.on('workflow-update', (data) => {
-      console.log('Workflow update received:', data);
-      setWorkflow(data.workflow);
-      
-      if (data.dag && data.dag.nodes) {
-        setMetadata(data.dag.metadata);
-        
-        // Update nodes
-        const flowNodes: Node[] = data.dag.nodes.map((node: any) => ({
-          id: node.id,
-          type: 'default',
-          data: {
-            label: (
-              <div style={{ padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                  {getPhaseIcon(node.phase)} {node.name}
-                </div>
-                <div style={{ fontSize: '10px', color: '#666' }}>
-                  {node.type?.toUpperCase()}
-                </div>
-                {node.duration && (
-                  <div style={{ fontSize: '10px', marginTop: '3px' }}>
-                    ⏱️ {node.duration}
-                  </div>
-                )}
-              </div>
-            ),
-            ...node,
-          },
-          position: node.position || { x: 0, y: 0 },
-          style: {
-            background: getNodeColor(node.phase),
-            color: '#fff',
-            border: `2px solid ${getNodeColor(node.phase)}`,
-            borderRadius: '8px',
-            width: 200,
-          },
-        }));
-
-        // Update edges
-        const flowEdges: Edge[] = data.dag.edges.map((edge: any) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          label: edge.label,
-          type: 'smoothstep',
-          animated: edge.type === 'success' || edge.type === 'failure',
-          style: {
-            stroke: getEdgeColor(edge.type),
-            strokeWidth: 2,
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: getEdgeColor(edge.type),
-          },
-        }));
-
-        setNodes(flowNodes);
-        setEdges(flowEdges);
-      }
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-    });
-
+    setIsConnected(true);
     fetchDAG(); // Initial fetch
 
+    // Auto-refresh every 5 seconds
+    const interval = setInterval(() => {
+      fetchDAG();
+    }, 5000);
+
     return () => {
-      newSocket.emit('unwatch-workflow', { namespace, name: workflowName });
-      newSocket.close();
+      clearInterval(interval);
+      setIsConnected(false);
     };
-  }, [namespace, workflowName, fetchDAG, setNodes, setEdges]);
+  }, [namespace, workflowName, fetchDAG]);
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -271,7 +200,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
             Namespace: {workflow?.namespace || namespace} | 
             Phase: {workflow?.phase || 'Loading...'} |
             {workflow?.schedule && ` Schedule: ${workflow.schedule} |`}
-            {isConnected ? ' 🟢 Connected' : ' 🔴 Disconnected'}
+            {isConnected ? ' 🟢 Auto-refresh (5s)' : ' 🔴 Stopped'}
           </div>
         </div>
         <button 
