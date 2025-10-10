@@ -149,6 +149,42 @@ make build-docker-all
 make deploy-dev
 ```
 
+## 🐛 Bug Fixes & Change Log
+
+### HTTP Status Code Validation Fix (2025-10-10)
+
+**Issue**: Health check workflow가 간헐적으로 잘못된 성공/실패 판정을 하는 문제 발견
+- `executeHTTPRequest` 함수가 HTTP 상태 코드를 검증하지 않음
+- 404, 503 등 에러 응답도 Task Phase "Succeeded"로 처리
+- 예: `https://us.drillquiz.com/aaa` 가 503 반환해도 성공으로 처리
+
+**Fix**: 
+```go
+// controller/controller.go:539-542
+// Check HTTP status code - fail if not 2xx
+if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+    return string(doc), fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+}
+```
+
+**Deployment**:
+- ⚠️ **모든 배포는 Jenkins CI/CD를 통해서만 수행**
+- Git push 후 Jenkins가 자동으로 빌드 및 배포 처리
+- 로컬 `make build-docker`, `make deploy`는 개발/테스트 용도만
+
+**Testing After Deployment**:
+```bash
+# 배포 후 health monitor workflow 확인
+kubectl get mcallworkflow health-monitor -n mcall-dev
+kubectl get mcalltask -n mcall-dev -l mcall.tz.io/workflow=health-monitor
+
+# 로그 확인
+tail -f /app/log/mcall/health_monitor.log
+# 이제 200 응답만 SUCCESS, 나머지는 FAILED로 정확하게 구분됨
+```
+
+---
+
 ## Troubleshooting
 
 ### MCP Server Image Build Failure

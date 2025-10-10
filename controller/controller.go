@@ -536,6 +536,11 @@ func executeHTTPRequest(url, method string, timeout time.Duration) (string, erro
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	// Check HTTP status code - fail if not 2xx
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return string(doc), fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	}
+
 	// Return only body content (like mcall.go fetchHtml)
 	return string(doc), nil
 }

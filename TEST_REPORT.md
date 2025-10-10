@@ -81,11 +81,45 @@ All **unit tests PASSED** ✓
    - ✅ Example workflow (`examples/health-monitor-workflow-with-result-passing.yaml`)
    - ✅ Integration test cases (`tests/test-cases/task-result-passing-test-cases.yaml`)
 
+### 🐛 Bug Fixes
+
+#### 1. HTTP Status Code Validation (2025-10-10)
+**Issue**: `executeHTTPRequest` 함수가 HTTP 상태 코드를 검증하지 않아 에러 응답도 성공으로 처리되는 문제
+- HTTP 404, 503 등 에러 응답이 Task Phase "Succeeded"로 처리됨
+- Health check workflow에서 조건부 실행이 잘못 동작
+- 예: https://us.drillquiz.com/aaa (503 Service Unavailable) → Success로 처리
+
+**Root Cause**: 
+- `executeHTTPRequest()` 함수에서 네트워크 요청만 성공하면 HTTP 상태 코드와 무관하게 성공 처리
+- 200-299 범위 외 응답도 `err == nil`로 반환
+
+**Fix** (`controller/controller.go:539-542`):
+```go
+// Check HTTP status code - fail if not 2xx
+if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+    return string(doc), fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+}
+```
+
+**Impact**:
+- ✅ Health check가 정확하게 성공/실패 판단
+- ✅ Conditional workflow 정상 동작
+- ✅ log-success/log-failure가 올바른 조건에서 실행
+
+**Testing**:
+- ✅ Local build 성공 (`make build`)
+- ⏳ Jenkins 배포 대기 중
+
+#### 2. DeepCopyInto InputSources (Fixed)
+**Issue**: DeepCopyInto 함수가 InputSources를 복사하지 않는 문제
+- ✅ 수정 완료
+- ⏳ Operator 재배포 필요
+
 ### ⚠️ Known Issues
 
 1. **Operator Deployment**
-   - DeepCopyInto 함수가 InputSources를 복사하지 않는 문제를 수정함
-   - Operator를 재빌드하고 재배포해야 클러스터에서 실제 동작 가능
+   - HTTP 상태 코드 검증 수정사항을 포함하여 Operator 재빌드 및 재배포 필요
+   - Jenkins CI/CD 파이프라인을 통해 자동 배포
    - 현재 배포된 operator는 구버전이므로 통합 테스트는 재배포 후 진행 필요
 
 ### 📊 Test Coverage
@@ -214,4 +248,5 @@ The Task Result Passing design is **fully implemented** at the code level:
 
 ---
 **Generated**: 2025-10-10 15:25 KST
+
 
