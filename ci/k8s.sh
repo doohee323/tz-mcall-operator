@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Kubernetes CRD deployment script
 set -e
