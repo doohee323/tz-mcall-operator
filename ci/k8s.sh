@@ -251,9 +251,15 @@ deploy_crds() {
                 echo "  📦 CRD doesn't exist in cluster"
             fi
             
-            # Create new CRD
+            # Create new CRD (POSIX sh compatible)
             echo "  📦 Creating CRD with new schema..."
-            if kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'; then
+            # Save output to temp file and check exit code
+            CREATE_OUTPUT=$(mktemp)
+            if kubectl create -f "$crd_file" > "$CREATE_OUTPUT" 2>&1; then
+                # Indent output
+                sed 's/^/    /' "$CREATE_OUTPUT"
+                rm -f "$CREATE_OUTPUT"
+                
                 echo "  ✅ Create succeeded"
                 
                 # Add Helm metadata to CRD for ownership
@@ -272,6 +278,9 @@ deploy_crds() {
                 kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
                     python3 -c "import sys, json; data = json.load(sys.stdin); fields = list(data.keys()); print('    Total fields:', len(fields)); print('    Has inputSources:', 'inputSources' in fields); print('    Has inputTemplate:', 'inputTemplate' in fields)" 2>/dev/null || echo "    (Could not verify new fields)"
             else
+                # Show error output
+                sed 's/^/    /' "$CREATE_OUTPUT"
+                rm -f "$CREATE_OUTPUT"
                 echo "  ❌ Create failed for $CRD_NAME"
                 return 1
             fi
