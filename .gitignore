@@ -15,3 +15,10 @@ test-results/
 
 # Built Helm charts
 *.tgz
+
+# Test files
+email_cmd.txt
+email_test.py
+
+# Personal config
+docs/claude_desktop_config.json
