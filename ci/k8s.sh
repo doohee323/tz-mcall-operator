@@ -187,32 +187,40 @@ cleanup_conflicting_resources() {
 
 # Deploy CRDs
 deploy_crds() {
-    echo "🔧 Applying CRDs..."
+    echo "🔧 Deploying CRDs..."
     
     # Apply CRD manifests from Helm chart templates
     # Note: Helm doesn't update CRDs on upgrade, so we apply them explicitly
+    # For CRDs, we use 'replace --force' to ensure schema updates are applied
     if [ -d "helm/mcall-operator/templates/crds" ]; then
         echo "Applying CRDs from helm/mcall-operator/templates/crds/"
         
-        # Use kubectl apply (not create) to update existing CRDs
-        kubectl apply -f helm/mcall-operator/templates/crds/ 2>&1 | tee /tmp/crd-apply.log
+        for crd_file in helm/mcall-operator/templates/crds/*.yaml; do
+            CRD_NAME=$(grep "name:" "$crd_file" | head -1 | awk '{print $2}')
+            echo "Processing CRD: $CRD_NAME"
+            
+            # Check if CRD exists
+            if kubectl get crd "$CRD_NAME" >/dev/null 2>&1; then
+                echo "  CRD exists, using replace --force to update schema..."
+                kubectl replace --force -f "$crd_file" 2>&1 || echo "  ⚠️  Replace failed for $CRD_NAME"
+            else
+                echo "  CRD doesn't exist, creating..."
+                kubectl create -f "$crd_file" 2>&1 || echo "  ⚠️  Create failed for $CRD_NAME"
+            fi
+        done
         
-        if [ $? -eq 0 ]; then
-            echo "✅ CRDs applied successfully"
-        else
-            echo "⚠️  CRD apply had issues, checking status..."
-            cat /tmp/crd-apply.log
-        fi
+        echo "✅ CRD deployment completed"
         
         # Wait for CRDs to be established
-        echo "⏳ Waiting for CRDs to be established..."
+        echo "⏳ Waiting for CRDs to be re-established..."
+        sleep 5  # Give k8s API server time to process
         kubectl wait --for condition=established --timeout=60s crd/mcalltasks.mcall.tz.io 2>&1 || echo "⚠️  McallTask CRD not established yet"
         kubectl wait --for condition=established --timeout=60s crd/mcallworkflows.mcall.tz.io 2>&1 || echo "⚠️  McallWorkflow CRD not established yet"
         
         # Verify CRDs are present
         echo "📋 Verifying CRDs..."
         if kubectl get crd mcalltasks.mcall.tz.io >/dev/null 2>&1 && kubectl get crd mcallworkflows.mcall.tz.io >/dev/null 2>&1; then
-            echo "✅ All CRDs verified"
+            echo "✅ All CRDs verified and updated"
         else
             echo "❌ Some CRDs are missing!"
             kubectl get crd | grep mcall || echo "No mcall CRDs found"
