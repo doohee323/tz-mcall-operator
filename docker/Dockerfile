@@ -38,8 +38,8 @@ COPY --from=builder /workspace/manager .
 # Set executable permissions
 RUN chmod +x manager
 
-# Copy CRD definitions (templates)
-COPY --from=builder /workspace/helm/mcall-operator/templates/crds/ ./crd/
+# Copy CRD definitions
+COPY --from=builder /workspace/crds/ ./crd/
 
 # Copy examples
 COPY --from=builder /workspace/examples/ ./examples/
