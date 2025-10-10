@@ -1,4 +1,5 @@
 import express from "express";
+import { createServer } from "http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
@@ -19,11 +20,38 @@ import {
   ListWorkflowsSchema,
   DeleteWorkflowSchema
 } from "./tools.js";
+import dagApiRouter from "./dag-api.js";
+import { setupWebSocket } from "./dag-websocket.js";
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+
+// CORS for development
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Serve static files from UI build (if exists)
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use(express.static(join(__dirname, '../ui/dist')));
+
+// DAG API routes
+app.use('/api', dagApiRouter);
+
+// Setup WebSocket
+setupWebSocket(httpServer);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -210,11 +238,13 @@ app.post("/mcp", async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`MCP Server listening on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Ready check: http://localhost:${PORT}/ready`);
   console.log(`MCP endpoint: http://localhost:${PORT}/mcp`);
+  console.log(`DAG API: http://localhost:${PORT}/api/workflows/:namespace/:name/dag`);
+  console.log(`WebSocket: ws://localhost:${PORT}/socket.io/`);
 });
 
 export default app;
