@@ -1115,32 +1115,32 @@ func (r *McallTaskReconciler) handlePending(ctx context.Context, task *mcallv1.M
 		return ctrl.Result{}, err
 	}
 
-		// Update status to Running
-		task.Status.Phase = mcallv1.McallTaskPhaseRunning
-		task.Status.StartTime = &metav1.Time{Time: time.Now()}
-		
-		// Update with retry on conflict
-		updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			// Get the latest version
-			latest := &mcallv1.McallTask{}
-			if err := r.Get(ctx, types.NamespacedName{
-				Name:      task.Name,
-				Namespace: task.Namespace,
-			}, latest); err != nil {
-				return err
-			}
-			
-			// Apply changes to latest version
-			latest.Status.Phase = mcallv1.McallTaskPhaseRunning
-			latest.Status.StartTime = &metav1.Time{Time: time.Now()}
-			
-			return r.Status().Update(ctx, latest)
-		})
-		
-		if updateErr != nil {
-			log.Error(updateErr, "Failed to update task status after retries", "task", task.Name)
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	// Update status to Running
+	task.Status.Phase = mcallv1.McallTaskPhaseRunning
+	task.Status.StartTime = &metav1.Time{Time: time.Now()}
+
+	// Update with retry on conflict
+	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the latest version
+		latest := &mcallv1.McallTask{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      task.Name,
+			Namespace: task.Namespace,
+		}, latest); err != nil {
+			return err
 		}
+
+		// Apply changes to latest version
+		latest.Status.Phase = mcallv1.McallTaskPhaseRunning
+		latest.Status.StartTime = &metav1.Time{Time: time.Now()}
+
+		return r.Status().Update(ctx, latest)
+	})
+
+	if updateErr != nil {
+		log.Error(updateErr, "Failed to update task status after retries", "task", task.Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -1307,7 +1307,7 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 				ErrorCode:    "-1",
 				ErrorMessage: fmt.Sprintf("Failed to process input sources: %v", err),
 			}
-			
+
 			// Update with retry on conflict
 			updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				// Get the latest version
@@ -1318,16 +1318,16 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 				}, latest); err != nil {
 					return err
 				}
-				
+
 				// Apply changes to latest version
 				latest.Status.Result = &mcallv1.McallTaskResult{
 					ErrorCode:    "-1",
 					ErrorMessage: fmt.Sprintf("Failed to process input sources: %v", err),
 				}
-				
+
 				return r.Status().Update(ctx, latest)
 			})
-			
+
 			if updateErr != nil {
 				logger.Error(updateErr, "Failed to update task status after retries", "task", task.Name)
 			}
@@ -1540,7 +1540,7 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 		}, latest); err != nil {
 			return err
 		}
-		
+
 		// Apply changes to latest version
 		latest.Status.Phase = task.Status.Phase
 		latest.Status.CompletionTime = task.Status.CompletionTime
@@ -1549,7 +1549,7 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 			ErrorCode:    errCode,
 			ErrorMessage: errMsg,
 		}
-		
+
 		return r.Status().Update(ctx, latest)
 	})
 

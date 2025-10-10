@@ -174,7 +174,8 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			log.Error(err, "Failed to build final DAG before cleanup", "workflow", workflow.Name)
 		}
 
-		// Add current DAG to history (keep last 5 runs)
+		// Store DAG history before reset (keep last 5 runs)
+		var preservedHistory []mcallv1.WorkflowDAG
 		if workflow.Status.DAG != nil {
 			history := workflow.Status.DAGHistory
 			if history == nil {
@@ -189,9 +190,9 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 				history = history[:5]
 			}
 
-			workflow.Status.DAGHistory = history
+			preservedHistory = history
 
-			log.Info("Added DAG to history",
+			log.Info("Prepared DAG for history",
 				"workflow", workflow.Name,
 				"runID", workflow.Status.DAG.RunID,
 				"historyCount", len(history))
@@ -208,8 +209,9 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 		workflow.Status.StartTime = nil
 		workflow.Status.CompletionTime = nil
 
-		// Keep current DAG as last run (will be replaced on next run)
-		// DAG and DAGHistory are preserved
+		// Preserve DAG history (DAG will be nil for next run)
+		workflow.Status.DAG = nil
+		workflow.Status.DAGHistory = preservedHistory
 		
 		// Update status with retry on conflict
 		resetErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -226,8 +228,8 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
 			latest.Status.StartTime = nil
 			latest.Status.CompletionTime = nil
-			latest.Status.DAG = workflow.Status.DAG
-			latest.Status.DAGHistory = workflow.Status.DAGHistory
+			latest.Status.DAG = nil // Clear current DAG
+			latest.Status.DAGHistory = preservedHistory // Preserve history
 
 			return r.Status().Update(ctx, latest)
 		})
@@ -237,7 +239,9 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
-		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)", "workflow", workflow.Name)
+		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)", 
+			"workflow", workflow.Name, 
+			"historyCount", len(preservedHistory))
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
 
