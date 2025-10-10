@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -182,20 +183,20 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			return err
 		}
 
-	// Create a copy of the referenced task with workflow-specific settings
-	task := &mcallv1.McallTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name),
-			Namespace: workflow.Namespace,
-			Labels: map[string]string{
-				"mcall.tz.io/workflow":      workflow.Name,
-				"mcall.tz.io/task":          taskSpec.Name,
-				"mcall.tz.io/original-task": taskRef.Name,
+		// Create a copy of the referenced task with workflow-specific settings
+		task := &mcallv1.McallTask{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name),
+				Namespace: workflow.Namespace,
+				Labels: map[string]string{
+					"mcall.tz.io/workflow":      workflow.Name,
+					"mcall.tz.io/task":          taskSpec.Name,
+					"mcall.tz.io/original-task": taskRef.Name,
+				},
+				Annotations: make(map[string]string),
 			},
-			Annotations: make(map[string]string),
-		},
-		Spec: *referencedTask.Spec.DeepCopy(),
-	}
+			Spec: *referencedTask.Spec.DeepCopy(),
+		}
 
 		// Update dependencies to use workflow task names
 		task.Spec.Dependencies = r.convertDependencies(workflow.Name, taskSpec.Dependencies)
@@ -247,11 +248,35 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 		}
 
 		if err := r.Create(ctx, task); err != nil {
-			log.Error(err, "Failed to create task", "workflow", workflow.Name, "task", taskSpec.Name)
-			return err
-		}
+			if apierrors.IsAlreadyExists(err) {
+				// Task already exists, delete and recreate with updated specs
+				log.Info("Task already exists, deleting and recreating", "workflow", workflow.Name, "task", taskSpec.Name)
 
-		log.Info("Created task for workflow", "workflow", workflow.Name, "task", taskSpec.Name, "originalTask", taskRef.Name, "dependencies", taskSpec.Dependencies)
+				existingTask := &mcallv1.McallTask{}
+				if getErr := r.Get(ctx, types.NamespacedName{Name: task.Name, Namespace: task.Namespace}, existingTask); getErr != nil {
+					log.Error(getErr, "Failed to get existing task", "workflow", workflow.Name, "task", taskSpec.Name)
+					return getErr
+				}
+
+				if delErr := r.Delete(ctx, existingTask); delErr != nil {
+					log.Error(delErr, "Failed to delete existing task", "workflow", workflow.Name, "task", taskSpec.Name)
+					return delErr
+				}
+
+				// Recreate task
+				if createErr := r.Create(ctx, task); createErr != nil {
+					log.Error(createErr, "Failed to recreate task", "workflow", workflow.Name, "task", taskSpec.Name)
+					return createErr
+				}
+
+				log.Info("Recreated task for workflow", "workflow", workflow.Name, "task", taskSpec.Name)
+			} else {
+				log.Error(err, "Failed to create task", "workflow", workflow.Name, "task", taskSpec.Name)
+				return err
+			}
+		} else {
+			log.Info("Created task for workflow", "workflow", workflow.Name, "task", taskSpec.Name, "originalTask", taskRef.Name, "dependencies", taskSpec.Dependencies)
+		}
 	}
 
 	return nil
