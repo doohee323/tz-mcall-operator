@@ -136,27 +136,45 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 	}
 
 	// Update status with DAG (fetch latest version to avoid conflicts)
+	log.Info("🔄 Starting DAG Status Update", "workflow", workflow.Name, "dagNodes", len(workflow.Status.DAG.Nodes), "dagEdges", len(workflow.Status.DAG.Edges))
+	
 	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		log.Info("🔄 RetryOnConflict attempt - fetching latest workflow", "workflow", workflow.Name)
+		
 		// Get the latest version of the workflow
 		latest := &mcallv1.McallWorkflow{}
 		if err := r.Get(ctx, types.NamespacedName{
 			Name:      workflow.Name,
 			Namespace: workflow.Namespace,
 		}, latest); err != nil {
+			log.Error(err, "❌ Failed to get latest workflow version", "workflow", workflow.Name)
 			return err
 		}
 
+		log.Info("✅ Got latest workflow version", "workflow", workflow.Name, "currentDAG", latest.Status.DAG != nil, "currentHistoryCount", len(latest.Status.DAGHistory))
+
 		// Update the DAG on the latest version
 		latest.Status.DAG = workflow.Status.DAG
+		
+		log.Info("🔄 Setting DAG on latest version", "workflow", workflow.Name, "dagNodes", len(latest.Status.DAG.Nodes), "dagEdges", len(latest.Status.DAG.Edges))
 
 		// Update the status
-		return r.Status().Update(ctx, latest)
+		log.Info("🔄 Calling Status().Update", "workflow", workflow.Name)
+		updateErr := r.Status().Update(ctx, latest)
+		if updateErr != nil {
+			log.Error(updateErr, "❌ Status().Update failed", "workflow", workflow.Name, "error", updateErr.Error())
+		} else {
+			log.Info("✅ Status().Update succeeded", "workflow", workflow.Name)
+		}
+		return updateErr
 	})
 
 	if updateErr != nil {
-		log.Error(updateErr, "Failed to update workflow status with DAG after retries", "workflow", workflow.Name)
+		log.Error(updateErr, "❌ Failed to update workflow status with DAG after retries", "workflow", workflow.Name, "retries", retry.DefaultRetry.Steps)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
+	
+	log.Info("✅ DAG Status Update completed successfully", "workflow", workflow.Name)
 
 	// Continue monitoring
 	return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -705,13 +723,26 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 	// Update workflow status
 	workflow.Status.DAG = dag
 
-	log.Info("Built workflow DAG",
+	log.Info("🎨 Built workflow DAG",
 		"workflow", workflow.Name,
 		"nodes", len(dag.Nodes),
 		"edges", len(dag.Edges),
 		"success", dag.Metadata.SuccessCount,
 		"running", dag.Metadata.RunningCount,
-		"failed", dag.Metadata.FailureCount)
+		"failed", dag.Metadata.FailureCount,
+		"runID", dag.RunID)
+		
+	// Log detailed edge information
+	for i, edge := range dag.Edges {
+		log.Info("🔗 DAG Edge", 
+			"workflow", workflow.Name,
+			"edgeIndex", i,
+			"source", edge.Source,
+			"target", edge.Target,
+			"type", edge.Type,
+			"condition", edge.Condition,
+			"label", edge.Label)
+	}
 
 	return nil
 }
