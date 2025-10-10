@@ -185,10 +185,25 @@ cleanup_conflicting_resources() {
     echo "✅ Conflicting resources cleanup completed"
 }
 
-# Deploy CRDs (now handled by Helm automatically)
+# Deploy CRDs
 deploy_crds() {
-    echo "🔧 CRDs will be installed automatically by Helm chart..."
-    echo "✅ CRD installation delegated to Helm"
+    echo "🔧 Deploying CRDs..."
+    
+    # Apply CRD manifests from Helm chart templates
+    if [ -d "helm/mcall-operator/templates/crds" ]; then
+        echo "Applying CRDs from helm/mcall-operator/templates/crds/"
+        kubectl apply -f helm/mcall-operator/templates/crds/ || echo "Failed to apply CRDs"
+        
+        # Wait for CRDs to be established
+        echo "Waiting for CRDs to be established..."
+        kubectl wait --for condition=established --timeout=60s crd/mcalltasks.mcall.tz.io || echo "McallTask CRD not established"
+        kubectl wait --for condition=established --timeout=60s crd/mcallworkflows.mcall.tz.io || echo "McallWorkflow CRD not established"
+        
+        echo "✅ CRD deployment completed"
+    else
+        echo "⚠️  CRD directory not found: helm/mcall-operator/templates/crds/"
+        echo "CRDs will be installed by Helm chart..."
+    fi
 }
 
 # Deploy Helm chart
