@@ -92,8 +92,20 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [dagHistory, setDAGHistory] = useState<any[]>([]);
   const [selectedRunID, setSelectedRunID] = useState<string>('current');
-  const [lastValidDAG, setLastValidDAG] = useState<any>(null); // Cache last valid DAG
   const [isStaleDAG, setIsStaleDAG] = useState(false); // Track if showing stale data
+
+  // localStorage key for caching
+  const cacheKey = `dag-cache-${namespace}-${workflowName}`;
+
+  // Load cached DAG from localStorage on mount
+  const [lastValidDAG, setLastValidDAG] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Fetch initial DAG
   const fetchDAG = useCallback(async () => {
@@ -127,9 +139,15 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           showingStale = true;
         }
         
-        // Cache valid DAG for later use
+        // Cache valid DAG for later use (both memory and localStorage)
         if (displayDAG.nodes && displayDAG.nodes.length > 0) {
           setLastValidDAG(displayDAG);
+          // Save to localStorage for persistence across page reloads
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(displayDAG));
+          } catch (e) {
+            console.warn('Failed to cache DAG to localStorage:', e);
+          }
           if (selectedRunID === 'current') {
             setIsStaleDAG(false);
           }

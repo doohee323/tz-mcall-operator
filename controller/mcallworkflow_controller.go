@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -134,14 +135,27 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 		return ctrl.Result{}, nil
 	}
 
-	// Update status with DAG (with retry on conflict)
-	if err := r.Status().Update(ctx, workflow); err != nil {
-		if apierrors.IsConflict(err) {
-			// Conflict error - requeue immediately to retry
-			log.Info("Conflict updating workflow status with DAG, will retry", "workflow", workflow.Name)
-			return ctrl.Result{Requeue: true}, nil
+	// Update status with DAG (fetch latest version to avoid conflicts)
+	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the latest version of the workflow
+		latest := &mcallv1.McallWorkflow{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      workflow.Name,
+			Namespace: workflow.Namespace,
+		}, latest); err != nil {
+			return err
 		}
-		return ctrl.Result{}, err
+
+		// Update the DAG on the latest version
+		latest.Status.DAG = workflow.Status.DAG
+
+		// Update the status
+		return r.Status().Update(ctx, latest)
+	})
+
+	if updateErr != nil {
+		log.Error(updateErr, "Failed to update workflow status with DAG after retries", "workflow", workflow.Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	// Continue monitoring
@@ -196,15 +210,31 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 
 		// Keep current DAG as last run (will be replaced on next run)
 		// DAG and DAGHistory are preserved
-
-		if err := r.Status().Update(ctx, workflow); err != nil {
-			if apierrors.IsConflict(err) {
-				// Conflict error - requeue immediately to retry
-				log.Info("Conflict updating workflow status on reset, will retry", "workflow", workflow.Name)
-				return ctrl.Result{Requeue: true}, nil
+		
+		// Update status with retry on conflict
+		resetErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			// Get the latest version
+			latest := &mcallv1.McallWorkflow{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      workflow.Name,
+				Namespace: workflow.Namespace,
+			}, latest); err != nil {
+				return err
 			}
-			log.Error(err, "Failed to reset workflow status", "workflow", workflow.Name)
-			return ctrl.Result{}, err
+
+			// Apply changes to latest version
+			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
+			latest.Status.StartTime = nil
+			latest.Status.CompletionTime = nil
+			latest.Status.DAG = workflow.Status.DAG
+			latest.Status.DAGHistory = workflow.Status.DAGHistory
+
+			return r.Status().Update(ctx, latest)
+		})
+
+		if resetErr != nil {
+			log.Error(resetErr, "Failed to reset workflow status after retries", "workflow", workflow.Name)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
 		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)", "workflow", workflow.Name)
