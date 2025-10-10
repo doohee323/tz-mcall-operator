@@ -196,20 +196,68 @@ deploy_crds() {
         echo "Applying CRDs from helm/mcall-operator/templates/crds/"
         
         for crd_file in helm/mcall-operator/templates/crds/*.yaml; do
-            CRD_NAME=$(grep "name:" "$crd_file" | head -1 | awk '{print $2}')
-            echo "Processing CRD: $CRD_NAME"
+            [ -f "$crd_file" ] || continue
             
-            # Check if CRD exists
-            if kubectl get crd "$CRD_NAME" >/dev/null 2>&1; then
-                echo "  CRD exists, using replace --force to update schema..."
-                kubectl replace --force -f "$crd_file" 2>&1 || echo "  ⚠️  Replace failed for $CRD_NAME"
+            CRD_NAME=$(grep "name:" "$crd_file" | head -1 | awk '{print $2}')
+            echo ""
+            echo "========================================="
+            echo "Processing CRD: $CRD_NAME"
+            echo "========================================="
+            
+            # Check file content for new fields
+            echo "📄 Checking CRD file content..."
+            if grep -q "inputSources" "$crd_file"; then
+                echo "  ✅ File contains 'inputSources' field"
             else
-                echo "  CRD doesn't exist, creating..."
-                kubectl create -f "$crd_file" 2>&1 || echo "  ⚠️  Create failed for $CRD_NAME"
+                echo "  ⚠️  File does NOT contain 'inputSources' field"
+            fi
+            if grep -q "inputTemplate" "$crd_file"; then
+                echo "  ✅ File contains 'inputTemplate' field"
+            else
+                echo "  ⚠️  File does NOT contain 'inputTemplate' field"
+            fi
+            
+            # Check if CRD exists in cluster
+            if kubectl get crd "$CRD_NAME" >/dev/null 2>&1; then
+                echo "  📊 CRD exists in cluster"
+                
+                # Show current fields in cluster CRD
+                echo "  📋 Current fields in cluster CRD:"
+                kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
+                    python3 -c "import sys, json; data = json.load(sys.stdin); print('    Fields:', ', '.join(sorted(data.keys())[:5]), '...')" 2>/dev/null || echo "    (Could not read current fields)"
+                
+                echo "  🔄 Using replace --force to update schema..."
+                kubectl replace --force -f "$crd_file" 2>&1 | sed 's/^/    /'
+                
+                if [ $? -eq 0 ]; then
+                    echo "  ✅ Replace succeeded"
+                    
+                    # Wait a moment for API server to process
+                    sleep 3
+                    
+                    # Verify new fields are present
+                    echo "  🔍 Verifying update..."
+                    kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
+                        python3 -c "import sys, json; data = json.load(sys.stdin); fields = list(data.keys()); print('    New fields:', ', '.join(sorted(fields)[:5]), '...'); print('    Has inputSources:', 'inputSources' in fields); print('    Has inputTemplate:', 'inputTemplate' in fields)" 2>/dev/null || echo "    (Could not verify new fields)"
+                else
+                    echo "  ❌ Replace failed for $CRD_NAME"
+                fi
+            else
+                echo "  📦 CRD doesn't exist, creating..."
+                kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'
+                
+                if [ $? -eq 0 ]; then
+                    echo "  ✅ Create succeeded"
+                else
+                    echo "  ❌ Create failed for $CRD_NAME"
+                fi
             fi
         done
         
+        echo ""
+        echo "========================================="
         echo "✅ CRD deployment completed"
+        echo "========================================="
         
         # Wait for CRDs to be established
         echo "⏳ Waiting for CRDs to be re-established..."
@@ -217,15 +265,26 @@ deploy_crds() {
         kubectl wait --for condition=established --timeout=60s crd/mcalltasks.mcall.tz.io 2>&1 || echo "⚠️  McallTask CRD not established yet"
         kubectl wait --for condition=established --timeout=60s crd/mcallworkflows.mcall.tz.io 2>&1 || echo "⚠️  McallWorkflow CRD not established yet"
         
-        # Verify CRDs are present
-        echo "📋 Verifying CRDs..."
-        if kubectl get crd mcalltasks.mcall.tz.io >/dev/null 2>&1 && kubectl get crd mcallworkflows.mcall.tz.io >/dev/null 2>&1; then
-            echo "✅ All CRDs verified and updated"
+        # Final verification with detailed field check
+        echo ""
+        echo "📋 Final Verification:"
+        echo "========================================="
+        if kubectl get crd mcalltasks.mcall.tz.io >/dev/null 2>&1; then
+            echo "✅ mcalltasks.mcall.tz.io is present"
+            kubectl get crd mcalltasks.mcall.tz.io -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
+                python3 -c "import sys, json; data = json.load(sys.stdin); fields = sorted(data.keys()); print('   Total fields:', len(fields)); print('   Has inputSources:', 'inputSources' in fields); print('   Has inputTemplate:', 'inputTemplate' in fields); print('   All fields:', ', '.join(fields))" 2>/dev/null || echo "   (Could not read fields)"
         else
-            echo "❌ Some CRDs are missing!"
-            kubectl get crd | grep mcall || echo "No mcall CRDs found"
-            return 1
+            echo "❌ mcalltasks.mcall.tz.io is MISSING"
         fi
+        
+        if kubectl get crd mcallworkflows.mcall.tz.io >/dev/null 2>&1; then
+            echo "✅ mcallworkflows.mcall.tz.io is present"
+            kubectl get crd mcallworkflows.mcall.tz.io -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.tasks.items.properties}' 2>/dev/null | \
+                python3 -c "import sys, json; data = json.load(sys.stdin); fields = sorted(data.keys()); print('   Total fields:', len(fields)); print('   Has condition:', 'condition' in fields); print('   Has inputSources:', 'inputSources' in fields); print('   All fields:', ', '.join(fields))" 2>/dev/null || echo "   (Could not read fields)"
+        else
+            echo "❌ mcallworkflows.mcall.tz.io is MISSING"
+        fi
+        echo "========================================="
     else
         echo "⚠️  CRD directory not found: helm/mcall-operator/templates/crds/"
         echo "CRDs will be installed by Helm chart (first install only)..."
