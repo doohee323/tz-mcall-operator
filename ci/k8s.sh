@@ -192,10 +192,10 @@ deploy_crds() {
     # Apply CRD manifests from Helm chart templates
     # Note: Helm doesn't update CRDs on upgrade, so we apply them explicitly
     # For CRDs, we use 'replace --force' to ensure schema updates are applied
-    if [ -d "helm/mcall-operator/templates/crds" ]; then
-        echo "Applying CRDs from helm/mcall-operator/templates/crds/"
+    if [ -d "crds" ]; then
+        echo "Applying CRDs from crds/"
         
-        for crd_file in helm/mcall-operator/templates/crds/*.yaml; do
+        for crd_file in crds/*.yaml; do
             [ -f "$crd_file" ] || continue
             
             CRD_NAME=$(grep "name:" "$crd_file" | head -1 | awk '{print $2}')
@@ -286,7 +286,7 @@ deploy_crds() {
         fi
         echo "========================================="
     else
-        echo "⚠️  CRD directory not found: helm/mcall-operator/templates/crds/"
+        echo "⚠️  CRD directory not found: crds/"
         echo "CRDs will be installed by Helm chart (first install only)..."
     fi
 }
