@@ -137,10 +137,10 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 
 	// Update status with DAG (fetch latest version to avoid conflicts)
 	log.Info("🔄 Starting DAG Status Update", "workflow", workflow.Name, "dagNodes", len(workflow.Status.DAG.Nodes), "dagEdges", len(workflow.Status.DAG.Edges))
-	
+
 	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		log.Info("🔄 RetryOnConflict attempt - fetching latest workflow", "workflow", workflow.Name)
-		
+
 		// Get the latest version of the workflow
 		latest := &mcallv1.McallWorkflow{}
 		if err := r.Get(ctx, types.NamespacedName{
@@ -155,7 +155,7 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 
 		// Update the DAG on the latest version
 		latest.Status.DAG = workflow.Status.DAG
-		
+
 		log.Info("🔄 Setting DAG on latest version", "workflow", workflow.Name, "dagNodes", len(latest.Status.DAG.Nodes), "dagEdges", len(latest.Status.DAG.Edges))
 
 		// Update the status
@@ -173,7 +173,7 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 		log.Error(updateErr, "❌ Failed to update workflow status with DAG after retries", "workflow", workflow.Name, "retries", retry.DefaultRetry.Steps)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
-	
+
 	log.Info("✅ DAG Status Update completed successfully", "workflow", workflow.Name)
 
 	// Continue monitoring
@@ -731,10 +731,10 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 		"running", dag.Metadata.RunningCount,
 		"failed", dag.Metadata.FailureCount,
 		"runID", dag.RunID)
-		
+
 	// Log detailed edge information
 	for i, edge := range dag.Edges {
-		log.Info("🔗 DAG Edge", 
+		log.Info("🔗 DAG Edge",
 			"workflow", workflow.Name,
 			"edgeIndex", i,
 			"source", edge.Source,

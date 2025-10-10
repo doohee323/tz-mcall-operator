@@ -276,11 +276,11 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     setIsConnected(true);
     fetchDAG(); // Initial fetch
 
-    // Auto-refresh every 5 seconds
+    // Auto-refresh every 10 seconds (workflow runs every 2 minutes)
     const interval = setInterval(() => {
       console.log('[DAG] 🔄 Auto-refresh triggered');
       fetchDAG();
-    }, 5000);
+    }, 10000);
 
     return () => {
       console.log('[DAG] 🛑 Stopping auto-refresh');

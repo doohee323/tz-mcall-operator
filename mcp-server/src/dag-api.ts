@@ -49,6 +49,11 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     const { namespace, name } = req.params;
     const workflow = await k8sClient.getWorkflow(name, namespace);
     
+    // Log raw workflow status for debugging
+    console.log('[DAG-API] 📊 Raw workflow.status:', JSON.stringify(workflow.status, null, 2));
+    console.log('[DAG-API] 🔗 workflow.status.dag:', JSON.stringify(workflow.status?.dag, null, 2));
+    console.log('[DAG-API] 📜 workflow.status.dagHistory length:', workflow.status?.dagHistory?.length || 0);
+    
     // Extract DAG from workflow status
     const dag = workflow.status?.dag || {
       nodes: [],
@@ -65,6 +70,8 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
       }
     };
     
+    console.log('[DAG-API] ✅ Extracted DAG nodes:', dag.nodes?.length || 0, 'edges:', dag.edges?.length || 0);
+    
     // Build response with workflow info, DAG, and history
     const response = {
       success: true,
@@ -80,6 +87,8 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
       dag: dag,
       dagHistory: workflow.status?.dagHistory || []
     };
+    
+    console.log('[DAG-API] 🚀 Sending response - nodes:', response.dag.nodes?.length, 'edges:', response.dag.edges?.length);
     
     res.json(response);
   } catch (error) {
