@@ -1,0 +1,306 @@
+{{- if .Values.crds.install }}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+    mcall.tz.io/environment: {{ .Values.environment.name | quote }}
+    mcall.tz.io/version: v1
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    environment: {{ .Values.environment.name | quote }}
+    crd.version: v1
+  name: mcalltasks.mcall.tz.io
+spec:
+  group: mcall.tz.io
+  names:
+    kind: McallTask
+    listKind: McallTaskList
+    plural: mcalltasks
+    singular: mcalltask
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: McallTask is the Schema for the mcalltasks API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: McallTaskSpec defines the desired state of McallTask
+            properties:
+              dependencies:
+                description: List of task names this task depends on
+                items:
+                  type: string
+                type: array
+              environment:
+                additionalProperties:
+                  type: string
+                description: Environment variables for task execution
+                type: object
+              executionMode:
+                description: Execution mode for multiple inputs (sequential/parallel)
+                type: string
+              failFast:
+                description: 'Fail fast on error - stop execution on first error (default:
+                  false)'
+                type: boolean
+              httpValidation:
+                description: HTTP response validation for GET/POST requests
+                properties:
+                  expectedResponseBody:
+                    description: Expected response body content
+                    type: string
+                  expectedStatusCodes:
+                    description: Expected HTTP status codes
+                    items:
+                      type: integer
+                    type: array
+                  followRedirects:
+                    description: Whether to follow redirects
+                    type: boolean
+                  maxRedirects:
+                    description: Maximum number of redirects to follow
+                    format: int32
+                    type: integer
+                  responseBodyMatch:
+                    description: How to match response body
+                    type: string
+                  responseBodyPattern:
+                    description: Regex pattern for response body matching
+                    type: string
+                  responseHeaders:
+                    additionalProperties:
+                      type: string
+                    description: Expected response headers
+                    type: object
+                  responseTimeout:
+                    description: HTTP response timeout in seconds
+                    format: int32
+                    type: integer
+                type: object
+              input:
+                description: Input command or URL to execute
+                type: string
+              inputSources:
+                description: 'InputSources: reference results from previous tasks'
+                items:
+                  description: TaskInputSource represents a reference to another task's
+                    result
+                  properties:
+                    default:
+                      description: 'Default: default value if field not found or task
+                        failed'
+                      type: string
+                    field:
+                      description: |-
+                        Field: which field to extract from task result
+                        - "output": task execution output
+                        - "errorCode": execution result code ("0" or "-1")
+                        - "phase": task status (Succeeded, Failed, etc)
+                        - "errorMessage": error message if failed
+                        - "all": all information as JSON
+                      type: string
+                    jsonPath:
+                      description: |-
+                        JSONPath: extract specific field from JSON output (optional)
+                        Example: "$.data.status", "$.items[0].name"
+                      type: string
+                    name:
+                      description: 'Name: variable name for template substitution
+                        or environment variable'
+                      type: string
+                    taskRef:
+                      description: 'TaskRef: name of the task to reference'
+                      type: string
+                  required:
+                  - field
+                  - name
+                  - taskRef
+                  type: object
+                type: array
+              inputTemplate:
+                description: 'InputTemplate: template string with variable substitution'
+                type: string
+              name:
+                description: Name identifier for this task
+                type: string
+              outputValidation:
+                description: Command output validation for CMD requests
+                properties:
+                  caseSensitive:
+                    description: Whether output matching is case sensitive
+                    type: boolean
+                  expectedFailureOutput:
+                    description: Expected output content that indicates failure
+                    type: string
+                  expectedJsonValue:
+                    description: Expected JSON value at specified path
+                    type: string
+                  expectedLines:
+                    description: Expected number of output lines
+                    format: int32
+                    type: integer
+                  expectedOutput:
+                    description: Expected output content
+                    type: string
+                  failureCriteria:
+                    description: Failure criteria for output validation
+                    type: string
+                  jsonPath:
+                    description: JSONPath expression for JSON validation
+                    type: string
+                  multiline:
+                    description: Whether to support multiline output
+                    type: boolean
+                  outputMatch:
+                    description: How to match output content
+                    type: string
+                  outputPattern:
+                    description: Regex pattern for output matching
+                    type: string
+                  outputTimeout:
+                    description: Output timeout in seconds
+                    format: int32
+                    type: integer
+                  successCriteria:
+                    description: Success criteria for output validation
+                    type: string
+                type: object
+              resources:
+                description: Resource requirements for task execution
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This is an alpha field and requires enabling the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              retryCount:
+                description: Number of retries on failure
+                format: int32
+                type: integer
+              schedule:
+                description: Cron schedule for recurring tasks (optional)
+                type: string
+              timeout:
+                description: Timeout in seconds
+                format: int32
+                type: integer
+              type:
+                description: Type of request (command, HTTP GET, HTTP POST)
+                type: string
+            required:
+            - input
+            - type
+            type: object
+          status:
+            description: McallTaskStatus defines the observed state of McallTask
+            properties:
+              completionTime:
+                description: When the task completed
+                format: date-time
+                type: string
+              lastRetryTime:
+                description: Last retry attempt time
+                format: date-time
+                type: string
+              phase:
+                description: Current phase of the task
+                type: string
+              result:
+                description: Task execution result
+                properties:
+                  errorCode:
+                    description: Error code (0 for success, -1 for failure)
+                    type: string
+                  errorMessage:
+                    description: Error message if failed
+                    type: string
+                  output:
+                    description: Task output
+                    type: string
+                type: object
+              retryCount:
+                description: Current retry count
+                format: int32
+                type: integer
+              startTime:
+                description: When the task started
+                format: date-time
+                type: string
+            required:
+            - phase
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- end }}

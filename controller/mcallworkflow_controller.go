@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -191,12 +192,59 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					"mcall.tz.io/task":          taskSpec.Name,
 					"mcall.tz.io/original-task": taskRef.Name,
 				},
+				Annotations: make(map[string]string),
 			},
 			Spec: referencedTask.Spec,
 		}
 
 		// Update dependencies to use workflow task names
 		task.Spec.Dependencies = r.convertDependencies(workflow.Name, taskSpec.Dependencies)
+
+		// Set Condition annotation if specified
+		if taskSpec.Condition != nil {
+			// Update DependentTask to use workflow task name
+			condition := *taskSpec.Condition
+			condition.DependentTask = fmt.Sprintf("%s-%s", workflow.Name, condition.DependentTask)
+
+			conditionJSON, err := json.Marshal(condition)
+			if err != nil {
+				log.Error(err, "Failed to marshal task condition", "workflow", workflow.Name, "task", taskSpec.Name)
+				return err
+			}
+			task.Annotations["mcall.tz.io/condition"] = string(conditionJSON)
+
+			log.Info("Set task condition",
+				"workflow", workflow.Name,
+				"task", taskSpec.Name,
+				"condition", condition)
+		}
+
+		// Set InputSources if specified
+		if len(taskSpec.InputSources) > 0 {
+			// Convert task references to use workflow task names
+			inputSources := make([]mcallv1.TaskInputSource, len(taskSpec.InputSources))
+			for i, source := range taskSpec.InputSources {
+				inputSources[i] = source
+				// Convert TaskRef to workflow task name
+				inputSources[i].TaskRef = fmt.Sprintf("%s-%s", workflow.Name, source.TaskRef)
+			}
+			task.Spec.InputSources = inputSources
+
+			log.Info("Set task input sources",
+				"workflow", workflow.Name,
+				"task", taskSpec.Name,
+				"sourceCount", len(inputSources))
+		}
+
+		// Set InputTemplate if specified
+		if taskSpec.InputTemplate != "" {
+			task.Spec.InputTemplate = taskSpec.InputTemplate
+
+			log.Info("Set task input template",
+				"workflow", workflow.Name,
+				"task", taskSpec.Name,
+				"template", taskSpec.InputTemplate)
+		}
 
 		if err := r.Create(ctx, task); err != nil {
 			log.Error(err, "Failed to create task", "workflow", workflow.Name, "task", taskSpec.Name)
@@ -215,8 +263,8 @@ func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workf
 	// Delete all workflow-specific task instances using labels
 	// Template tasks should NOT have the workflow label
 	var tasks mcallv1.McallTaskList
-	if err := r.List(ctx, &tasks, 
-		client.InNamespace(workflow.Namespace), 
+	if err := r.List(ctx, &tasks,
+		client.InNamespace(workflow.Namespace),
 		client.MatchingLabels{"mcall.tz.io/workflow": workflow.Name}); err != nil {
 		log.Error(err, "Failed to list workflow tasks for deletion", "workflow", workflow.Name)
 		return err

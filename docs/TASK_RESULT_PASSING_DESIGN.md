@@ -1009,58 +1009,14 @@ AI: [create_mcall_workflow 호출 with conditions]
 
 ---
 
-## 7. 데이터베이스 스키마 (PostgreSQL Logging)
+## 7. 마이그레이션 계획
 
-### 7.1 기존 스키마
-```sql
-CREATE TABLE monitoring_logs (
-    id SERIAL PRIMARY KEY,
-    service_name VARCHAR(255),
-    service_type VARCHAR(50),
-    status VARCHAR(50),
-    error_message TEXT,
-    response_time_ms BIGINT,
-    timestamp TIMESTAMP
-);
-```
-
-### 7.2 확장 제안
-```sql
--- Task 간 관계 추적
-ALTER TABLE monitoring_logs ADD COLUMN workflow_name VARCHAR(255);
-ALTER TABLE monitoring_logs ADD COLUMN task_name VARCHAR(255);
-ALTER TABLE monitoring_logs ADD COLUMN parent_task VARCHAR(255);
-ALTER TABLE monitoring_logs ADD COLUMN result_json JSONB;
-
--- 인덱스 추가
-CREATE INDEX idx_workflow_task ON monitoring_logs(workflow_name, task_name);
-CREATE INDEX idx_timestamp ON monitoring_logs(timestamp DESC);
-
--- Task 결과 조회 뷰
-CREATE VIEW task_results AS
-SELECT 
-    workflow_name,
-    task_name,
-    status,
-    result_json->>'phase' as phase,
-    result_json->>'errorCode' as error_code,
-    timestamp,
-    response_time_ms
-FROM monitoring_logs
-WHERE task_name IS NOT NULL
-ORDER BY timestamp DESC;
-```
-
----
-
-## 8. 마이그레이션 계획
-
-### 8.1 하위 호환성
+### 7.1 하위 호환성
 - 기존 Workflow는 그대로 작동
 - `InputSources`와 `Condition`은 선택 사항
 - 새 필드 없이도 기존처럼 동작
 
-### 8.2 단계별 마이그레이션
+### 7.2 단계별 마이그레이션
 1. **Phase 1**: 메타 정보 조회 API 추가 (기존 시스템에 영향 없음)
 2. **Phase 2**: InputSources 기능 추가 (opt-in)
 3. **Phase 3**: Condition 기능 추가 (opt-in)
@@ -1068,58 +1024,58 @@ ORDER BY timestamp DESC;
 
 ---
 
-## 9. 테스트 계획
+## 8. 테스트 계획
 
-### 9.1 Unit Tests
+### 8.1 Unit Tests
 - [ ] `getTaskResultSchema` 함수 테스트
 - [ ] `getTaskResultJson` 함수 테스트
 - [ ] `processInputSources` 함수 테스트
 - [ ] `checkTaskCondition` 함수 테스트
 - [ ] JSONPath 추출 로직 테스트
 
-### 9.2 Integration Tests
+### 8.2 Integration Tests
 - [ ] 조건부 실행 workflow 테스트
 - [ ] Task 결과 전달 workflow 테스트
 - [ ] JSONPath를 사용한 데이터 추출 테스트
 - [ ] 에러 케이스 처리 테스트
 
-### 9.3 E2E Tests
+### 8.3 E2E Tests
 - [ ] MCP를 통한 메타 정보 조회 테스트
 - [ ] Health monitoring workflow 전체 시나리오
 - [ ] API 데이터 처리 workflow 시나리오
 
 ---
 
-## 10. 성능 고려사항
+## 9. 성능 고려사항
 
-### 10.1 Task 결과 조회 최적화
+### 9.1 Task 결과 조회 최적화
 - Task 결과는 Kubernetes API에서 조회 (캐시 활용)
 - 큰 output은 preview만 반환
 - 필요한 필드만 선택적으로 조회
 
-### 10.2 JSONPath 처리
+### 9.2 JSONPath 처리
 - 간단한 경로 ($.field)는 직접 구현
 - 복잡한 경로는 라이브러리 사용 (github.com/oliveagle/jsonpath)
 - output 크기 제한 (예: 1MB 이상이면 에러)
 
 ---
 
-## 11. 보안 고려사항
+## 10. 보안 고려사항
 
-### 11.1 데이터 접근 제어
+### 10.1 데이터 접근 제어
 - Task 결과는 같은 namespace 내에서만 접근 가능
 - RBAC 설정으로 Task 조회 권한 관리
 
-### 11.2 민감 데이터 처리
+### 10.2 민감 데이터 처리
 - 환경 변수에 민감 정보가 있을 수 있음
 - output에 비밀번호 등이 포함될 수 있음
 - 로그 출력 시 민감 정보 마스킹 필요
 
 ---
 
-## 12. 향후 확장 가능성
+## 11. 향후 확장 가능성
 
-### 12.1 고급 데이터 변환
+### 11.1 고급 데이터 변환
 ```yaml
 inputSources:
   - name: USER_COUNT
@@ -1134,7 +1090,7 @@ inputSources:
     transform: "toUpperCase"  # 대문자 변환
 ```
 
-### 12.2 복합 조건
+### 11.2 복합 조건
 ```yaml
 condition:
   and:
@@ -1146,7 +1102,7 @@ condition:
         value: "0"
 ```
 
-### 12.3 결과 집계
+### 11.3 결과 집계
 ```yaml
 # 여러 healthcheck 결과를 하나로 집계
 inputSources:
@@ -1161,7 +1117,7 @@ inputSources:
 
 ---
 
-## 13. 문서화 계획
+## 12. 문서화 계획
 
 - [ ] API 레퍼런스: 새로운 필드 및 타입 문서화
 - [ ] 사용 가이드: Task 간 결과 전달 예시
@@ -1170,26 +1126,26 @@ inputSources:
 
 ---
 
-## 14. 예상 이점
+## 13. 예상 이점
 
-### 14.1 개발자 경험
+### 13.1 개발자 경험
 - ✅ Task 설계 시 명확한 입출력 정의
 - ✅ 디버깅 용이 (각 Task 결과를 독립적으로 확인)
 - ✅ Workflow 재사용성 증가
 
-### 14.2 운영 효율성
+### 13.2 운영 효율성
 - ✅ 복잡한 로직을 여러 Task로 분리 가능
 - ✅ 조건부 실행으로 불필요한 작업 제거
 - ✅ 에러 처리 및 알림 자동화
 
-### 14.3 AI 통합
+### 13.3 AI 통합
 - ✅ AI가 Task 메타 정보를 보고 자동으로 Workflow 구성
 - ✅ 자연어로 복잡한 Workflow 생성 가능
 - ✅ 에러 발생 시 AI가 원인 파악 가능
 
 ---
 
-## 15. 참고 자료
+## 14. 참고 자료
 
 - Argo Workflows: Task output artifacts
 - Tekton Pipelines: Task results and parameters
@@ -1203,4 +1159,5 @@ inputSources:
 - 작성일: 2025-10-09
 - 버전: 1.0
 - 상태: 설계 단계
+
 

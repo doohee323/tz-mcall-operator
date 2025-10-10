@@ -1,0 +1,338 @@
+{{- if .Values.crds.install }}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+    mcall.tz.io/environment: {{ .Values.environment.name | quote }}
+    mcall.tz.io/version: v1
+  labels:
+    app.kubernetes.io/name: mcall
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    environment: {{ .Values.environment.name | quote }}
+    crd.version: v1
+  name: mcallworkflows.mcall.tz.io
+spec:
+  group: mcall.tz.io
+  names:
+    kind: McallWorkflow
+    listKind: McallWorkflowList
+    plural: mcallworkflows
+    singular: mcallworkflow
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.startTime
+      name: Start Time
+      type: date
+    - jsonPath: .status.completionTime
+      name: Completion Time
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: McallWorkflow is the Schema for the mcallworkflows API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: McallWorkflowSpec defines the desired state of McallWorkflow
+            properties:
+              concurrency:
+                description: Concurrency is the maximum number of concurrent task
+                  executions
+                format: int32
+                type: integer
+              environment:
+                additionalProperties:
+                  type: string
+                description: Environment variables for all tasks in the workflow
+                type: object
+              resources:
+                description: Resources defines resource requirements for all tasks
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This is an alpha field and requires enabling the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              retryPolicy:
+                description: RetryPolicy defines the retry policy for the workflow
+                properties:
+                  backoffPolicy:
+                    description: BackoffPolicy is the backoff policy for retries
+                    type: string
+                  maxRetries:
+                    description: MaxRetries is the maximum number of retries
+                    format: int32
+                    type: integer
+                  retryDelay:
+                    description: RetryDelay is the delay between retries in seconds
+                    format: int32
+                    type: integer
+                type: object
+              schedule:
+                description: |-
+                  Schedule is the cron schedule for workflow execution (optional)
+                  Format: "minute hour day month weekday"
+                  Example: "0 2 * * *" (every day at 2 AM)
+                type: string
+              tasks:
+                description: Tasks is the list of McallTask references in this workflow
+                items:
+                  description: WorkflowTaskRef represents a reference to a McallTask
+                    in a workflow
+                  properties:
+                    condition:
+                      description: Condition defines when this task should run
+                      properties:
+                        dependentTask:
+                          description: 'DependentTask: name of the task whose result
+                            to check'
+                          type: string
+                        fieldEquals:
+                          description: 'FieldEquals: run if specific field equals
+                            specific value'
+                          properties:
+                            field:
+                              description: Field name to check (e.g., "errorCode",
+                                "phase")
+                              type: string
+                            value:
+                              description: Expected value
+                              type: string
+                          required:
+                          - field
+                          - value
+                          type: object
+                        outputContains:
+                          description: 'OutputContains: run if output contains specific
+                            string'
+                          type: string
+                        when:
+                          description: |-
+                            When: execution condition
+                            - "success": run only if dependent task succeeded
+                            - "failure": run only if dependent task failed
+                            - "always": run always after dependent task completes
+                            - "completed": run when dependent task completes (success or failure)
+                          type: string
+                      required:
+                      - dependentTask
+                      - when
+                      type: object
+                    dependencies:
+                      description: Dependencies is the list of task names this task
+                        depends on
+                      items:
+                        type: string
+                      type: array
+                    inputSources:
+                      description: InputSources defines data to pass from other tasks
+                      items:
+                        description: TaskInputSource represents a reference to another
+                          task's result
+                        properties:
+                          default:
+                            description: 'Default: default value if field not found
+                              or task failed'
+                            type: string
+                          field:
+                            description: |-
+                              Field: which field to extract from task result
+                              - "output": task execution output
+                              - "errorCode": execution result code ("0" or "-1")
+                              - "phase": task status (Succeeded, Failed, etc)
+                              - "errorMessage": error message if failed
+                              - "all": all information as JSON
+                            type: string
+                          jsonPath:
+                            description: |-
+                              JSONPath: extract specific field from JSON output (optional)
+                              Example: "$.data.status", "$.items[0].name"
+                            type: string
+                          name:
+                            description: 'Name: variable name for template substitution
+                              or environment variable'
+                            type: string
+                          taskRef:
+                            description: 'TaskRef: name of the task to reference'
+                            type: string
+                        required:
+                        - field
+                        - name
+                        - taskRef
+                        type: object
+                      type: array
+                    inputTemplate:
+                      description: InputTemplate for variable substitution
+                      type: string
+                    name:
+                      description: Name is the name of the task in the workflow
+                      type: string
+                    taskRef:
+                      description: TaskRef is the reference to the McallTask
+                      properties:
+                        name:
+                          description: Name is the name of the McallTask
+                          type: string
+                        namespace:
+                          description: Namespace is the namespace of the McallTask
+                          type: string
+                      required:
+                      - name
+                      type: object
+                  required:
+                  - name
+                  - taskRef
+                  type: object
+                type: array
+              timeout:
+                description: Timeout is the overall workflow timeout in seconds
+                format: int32
+                type: integer
+            required:
+            - tasks
+            type: object
+          status:
+            description: McallWorkflowStatus defines the observed state of McallWorkflow
+            properties:
+              completionTime:
+                description: CompletionTime is the time when the workflow completed
+                format: date-time
+                type: string
+              lastRetryTime:
+                description: LastRetryTime is the time of the last retry
+                format: date-time
+                type: string
+              lastRunTime:
+                description: LastRunTime is the time when the workflow was last executed
+                format: date-time
+                type: string
+              message:
+                description: Message is a human-readable message about the workflow
+                  status
+                type: string
+              phase:
+                description: Phase represents the current phase of workflow execution
+                type: string
+              reason:
+                description: Reason is a brief reason for the current status
+                type: string
+              retryCount:
+                description: RetryCount is the number of times the workflow has been
+                  retried
+                format: int32
+                type: integer
+              startTime:
+                description: StartTime is the time when the workflow started
+                format: date-time
+                type: string
+              taskStatuses:
+                description: TaskStatuses is the status of individual tasks
+                items:
+                  description: TaskStatus represents the status of a single task in
+                    the workflow
+                  properties:
+                    completionTime:
+                      description: CompletionTime is the time when the task completed
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message is a human-readable message about the task
+                        status
+                      type: string
+                    name:
+                      description: Name is the name of the task
+                      type: string
+                    phase:
+                      description: Phase is the current phase of the task
+                      type: string
+                    reason:
+                      description: Reason is a brief reason for the current status
+                      type: string
+                    startTime:
+                      description: StartTime is the time when the task started
+                      format: date-time
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- end }}

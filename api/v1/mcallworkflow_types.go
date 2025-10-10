@@ -51,6 +51,43 @@ type WorkflowTaskRef struct {
 
 	// Dependencies is the list of task names this task depends on
 	Dependencies []string `json:"dependencies,omitempty"`
+
+	// Condition defines when this task should run
+	Condition *TaskCondition `json:"condition,omitempty"`
+
+	// InputSources defines data to pass from other tasks
+	InputSources []TaskInputSource `json:"inputSources,omitempty"`
+
+	// InputTemplate for variable substitution
+	InputTemplate string `json:"inputTemplate,omitempty"`
+}
+
+// TaskCondition defines execution conditions for a task
+type TaskCondition struct {
+	// DependentTask: name of the task whose result to check
+	DependentTask string `json:"dependentTask"`
+
+	// When: execution condition
+	// - "success": run only if dependent task succeeded
+	// - "failure": run only if dependent task failed
+	// - "always": run always after dependent task completes
+	// - "completed": run when dependent task completes (success or failure)
+	When string `json:"when"`
+
+	// FieldEquals: run if specific field equals specific value
+	FieldEquals *FieldCondition `json:"fieldEquals,omitempty"`
+
+	// OutputContains: run if output contains specific string
+	OutputContains string `json:"outputContains,omitempty"`
+}
+
+// FieldCondition defines a field-based condition
+type FieldCondition struct {
+	// Field name to check (e.g., "errorCode", "phase")
+	Field string `json:"field"`
+
+	// Expected value
+	Value string `json:"value"`
 }
 
 // TaskRef represents a reference to a McallTask

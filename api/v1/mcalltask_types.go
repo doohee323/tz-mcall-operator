@@ -46,6 +46,36 @@ type McallTaskSpec struct {
 
 	// Fail fast on error - stop execution on first error (default: false)
 	FailFast bool `json:"failFast,omitempty"`
+
+	// InputSources: reference results from previous tasks
+	InputSources []TaskInputSource `json:"inputSources,omitempty"`
+
+	// InputTemplate: template string with variable substitution
+	InputTemplate string `json:"inputTemplate,omitempty"`
+}
+
+// TaskInputSource represents a reference to another task's result
+type TaskInputSource struct {
+	// Name: variable name for template substitution or environment variable
+	Name string `json:"name"`
+
+	// TaskRef: name of the task to reference
+	TaskRef string `json:"taskRef"`
+
+	// Field: which field to extract from task result
+	// - "output": task execution output
+	// - "errorCode": execution result code ("0" or "-1")
+	// - "phase": task status (Succeeded, Failed, etc)
+	// - "errorMessage": error message if failed
+	// - "all": all information as JSON
+	Field string `json:"field"`
+
+	// JSONPath: extract specific field from JSON output (optional)
+	// Example: "$.data.status", "$.items[0].name"
+	JSONPath string `json:"jsonPath,omitempty"`
+
+	// Default: default value if field not found or task failed
+	Default string `json:"default,omitempty"`
 }
 
 // McallTaskStatus defines the observed state of McallTask

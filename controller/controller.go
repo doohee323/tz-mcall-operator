@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -943,8 +944,142 @@ func (r *McallTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 }
 
+// checkTaskCondition checks if a task should run based on its condition
+func (r *McallTaskReconciler) checkTaskCondition(ctx context.Context, task *mcallv1.McallTask, condition *mcallv1.TaskCondition) (bool, error) {
+	logger := log.FromContext(ctx)
+
+	// Get the dependent task
+	var depTask mcallv1.McallTask
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      condition.DependentTask,
+		Namespace: task.Namespace,
+	}, &depTask); err != nil {
+		return false, fmt.Errorf("dependent task %s not found: %w", condition.DependentTask, err)
+	}
+
+	// Check if dependent task is completed
+	if depTask.Status.Phase != mcallv1.McallTaskPhaseSucceeded &&
+		depTask.Status.Phase != mcallv1.McallTaskPhaseFailed &&
+		depTask.Status.Phase != mcallv1.McallTaskPhaseSkipped {
+		logger.Info("Dependent task not completed yet",
+			"task", task.Name,
+			"dependentTask", condition.DependentTask,
+			"dependentPhase", depTask.Status.Phase)
+		return false, fmt.Errorf("dependent task %s not completed yet (phase: %s)", condition.DependentTask, depTask.Status.Phase)
+	}
+
+	// Check "when" condition
+	switch condition.When {
+	case "success":
+		if depTask.Status.Phase != mcallv1.McallTaskPhaseSucceeded {
+			logger.Info("Task condition not met: dependent task did not succeed",
+				"task", task.Name,
+				"dependentTask", condition.DependentTask,
+				"dependentPhase", depTask.Status.Phase)
+			return false, nil
+		}
+	case "failure":
+		if depTask.Status.Phase != mcallv1.McallTaskPhaseFailed {
+			logger.Info("Task condition not met: dependent task did not fail",
+				"task", task.Name,
+				"dependentTask", condition.DependentTask,
+				"dependentPhase", depTask.Status.Phase)
+			return false, nil
+		}
+	case "always", "completed":
+		// Run regardless of dependent task result
+		logger.Info("Task condition met: running after dependent task completion",
+			"task", task.Name,
+			"dependentTask", condition.DependentTask,
+			"dependentPhase", depTask.Status.Phase)
+	default:
+		return false, fmt.Errorf("unknown condition.when value: %s", condition.When)
+	}
+
+	// Check FieldEquals condition
+	if condition.FieldEquals != nil {
+		var actualValue string
+		switch condition.FieldEquals.Field {
+		case "errorCode":
+			if depTask.Status.Result != nil {
+				actualValue = depTask.Status.Result.ErrorCode
+			}
+		case "phase":
+			actualValue = string(depTask.Status.Phase)
+		case "output":
+			if depTask.Status.Result != nil {
+				actualValue = depTask.Status.Result.Output
+			}
+		default:
+			return false, fmt.Errorf("unknown field for condition: %s", condition.FieldEquals.Field)
+		}
+
+		if actualValue != condition.FieldEquals.Value {
+			logger.Info("Task condition not met: field value mismatch",
+				"task", task.Name,
+				"field", condition.FieldEquals.Field,
+				"expected", condition.FieldEquals.Value,
+				"actual", truncateString(actualValue, 100))
+			return false, nil
+		}
+	}
+
+	// Check OutputContains condition
+	if condition.OutputContains != "" {
+		if depTask.Status.Result == nil ||
+			!strings.Contains(depTask.Status.Result.Output, condition.OutputContains) {
+			logger.Info("Task condition not met: output does not contain expected string",
+				"task", task.Name,
+				"expected", condition.OutputContains,
+				"output", truncateString(depTask.Status.Result.Output, 100))
+			return false, nil
+		}
+	}
+
+	logger.Info("Task condition met, proceeding with execution",
+		"task", task.Name,
+		"dependentTask", condition.DependentTask)
+	return true, nil
+}
+
 func (r *McallTaskReconciler) handlePending(ctx context.Context, task *mcallv1.McallTask) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
+
+	// Check condition if present (from workflow annotation)
+	if conditionStr, exists := task.Annotations["mcall.tz.io/condition"]; exists && conditionStr != "" {
+		var condition mcallv1.TaskCondition
+		if err := json.Unmarshal([]byte(conditionStr), &condition); err != nil {
+			log.Error(err, "Failed to parse task condition", "task", task.Name)
+			return ctrl.Result{}, err
+		}
+
+		shouldRun, err := r.checkTaskCondition(ctx, task, &condition)
+		if err != nil {
+			// If dependent task not completed yet, requeue
+			if strings.Contains(err.Error(), "not completed yet") {
+				log.Info("Waiting for dependent task to complete",
+					"task", task.Name,
+					"dependentTask", condition.DependentTask)
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
+			log.Error(err, "Failed to check task condition", "task", task.Name)
+			return ctrl.Result{}, err
+		}
+
+		if !shouldRun {
+			log.Info("Task condition not met, skipping", "task", task.Name, "condition", condition)
+			task.Status.Phase = mcallv1.McallTaskPhaseSkipped
+			task.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+			task.Status.Result = &mcallv1.McallTaskResult{
+				ErrorCode:    "0",
+				ErrorMessage: fmt.Sprintf("Skipped due to condition: when=%s", condition.When),
+			}
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+	}
 
 	// Check dependencies
 	if len(task.Spec.Dependencies) > 0 {
@@ -984,6 +1119,139 @@ func (r *McallTaskReconciler) handlePending(ctx context.Context, task *mcallv1.M
 	return ctrl.Result{}, nil
 }
 
+// processInputSources processes InputSources and returns processed input and environment variables
+func (r *McallTaskReconciler) processInputSources(ctx context.Context, task *mcallv1.McallTask) (string, map[string]string, error) {
+	logger := log.FromContext(ctx)
+	inputData := make(map[string]interface{})
+	envVars := make(map[string]string)
+
+	for _, source := range task.Spec.InputSources {
+		// Get referenced task
+		var refTask mcallv1.McallTask
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      source.TaskRef,
+			Namespace: task.Namespace,
+		}, &refTask)
+
+		if err != nil {
+			// Task not found - use default if available
+			if source.Default != "" {
+				logger.Info("Referenced task not found, using default value",
+					"task", task.Name,
+					"sourceTask", source.TaskRef,
+					"defaultValue", truncateString(source.Default, 100))
+				inputData[source.Name] = source.Default
+				envVars[source.Name] = source.Default
+				continue
+			}
+			return "", nil, fmt.Errorf("referenced task %s not found and no default value: %w", source.TaskRef, err)
+		}
+
+		// Check if referenced task is completed
+		if refTask.Status.Phase != mcallv1.McallTaskPhaseSucceeded &&
+			refTask.Status.Phase != mcallv1.McallTaskPhaseFailed {
+			logger.Info("Referenced task not completed yet, waiting...",
+				"task", task.Name,
+				"sourceTask", source.TaskRef,
+				"sourcePhase", refTask.Status.Phase)
+			return "", nil, fmt.Errorf("referenced task %s not completed yet (phase: %s)", source.TaskRef, refTask.Status.Phase)
+		}
+
+		// Extract value based on field
+		var value string
+		switch source.Field {
+		case "output":
+			if refTask.Status.Result != nil {
+				value = refTask.Status.Result.Output
+
+				// Apply JSONPath if specified
+				if source.JSONPath != "" {
+					extracted, err := extractJSONPath(value, source.JSONPath)
+					if err != nil {
+						logger.Error(err, "Failed to extract JSONPath",
+							"task", task.Name,
+							"sourceTask", source.TaskRef,
+							"jsonPath", source.JSONPath)
+						if source.Default != "" {
+							value = source.Default
+						} else {
+							return "", nil, fmt.Errorf("failed to extract JSONPath %s: %w", source.JSONPath, err)
+						}
+					} else {
+						value = extracted
+					}
+				}
+			}
+		case "errorCode":
+			if refTask.Status.Result != nil {
+				value = refTask.Status.Result.ErrorCode
+			}
+		case "phase":
+			value = string(refTask.Status.Phase)
+		case "errorMessage":
+			if refTask.Status.Result != nil {
+				value = refTask.Status.Result.ErrorMessage
+			}
+		case "startTime":
+			if refTask.Status.StartTime != nil {
+				value = refTask.Status.StartTime.Format(time.RFC3339)
+			}
+		case "completionTime":
+			if refTask.Status.CompletionTime != nil {
+				value = refTask.Status.CompletionTime.Format(time.RFC3339)
+			}
+		case "all":
+			// All information as JSON
+			allData := map[string]interface{}{
+				"phase": string(refTask.Status.Phase),
+			}
+			if refTask.Status.StartTime != nil {
+				allData["startTime"] = refTask.Status.StartTime.Format(time.RFC3339)
+			}
+			if refTask.Status.CompletionTime != nil {
+				allData["completionTime"] = refTask.Status.CompletionTime.Format(time.RFC3339)
+			}
+			if refTask.Status.Result != nil {
+				allData["output"] = refTask.Status.Result.Output
+				allData["errorCode"] = refTask.Status.Result.ErrorCode
+				allData["errorMessage"] = refTask.Status.Result.ErrorMessage
+			}
+			jsonBytes, _ := json.Marshal(allData)
+			value = string(jsonBytes)
+		default:
+			return "", nil, fmt.Errorf("unknown field: %s", source.Field)
+		}
+
+		inputData[source.Name] = value
+		envVars[source.Name] = value
+
+		logger.Info("Extracted data from source task",
+			"task", task.Name,
+			"sourceTask", source.TaskRef,
+			"field", source.Field,
+			"varName", source.Name,
+			"valuePreview", truncateString(value, 100))
+	}
+
+	// Render input template if specified
+	if task.Spec.InputTemplate != "" {
+		renderedInput := renderTemplate(task.Spec.InputTemplate, inputData)
+		logger.Info("Rendered input template",
+			"task", task.Name,
+			"template", truncateString(task.Spec.InputTemplate, 100),
+			"rendered", truncateString(renderedInput, 100))
+		return renderedInput, envVars, nil
+	}
+
+	// If no template, return JSON of all input data
+	jsonBytes, err := json.Marshal(inputData)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to marshal input data: %w", err)
+	}
+
+	return string(jsonBytes), envVars, nil
+}
+
 func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.McallTask) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	taskTimeout := getTaskTimeout()
@@ -991,6 +1259,54 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 	// Check if task has already been executed
 	if task.Status.Phase == mcallv1.McallTaskPhaseSucceeded || task.Status.Phase == mcallv1.McallTaskPhaseFailed {
 		return ctrl.Result{}, nil
+	}
+
+	// Process InputSources if present
+	if len(task.Spec.InputSources) > 0 {
+		processedInput, envVars, err := r.processInputSources(ctx, task)
+		if err != nil {
+			// Check if it's a "not ready" error (referenced task not completed)
+			if strings.Contains(err.Error(), "not completed yet") {
+				logger.Info("Waiting for input sources to be ready",
+					"task", task.Name,
+					"error", err.Error())
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
+
+			// Other errors are failures
+			logger.Error(err, "Failed to process input sources", "task", task.Name)
+			task.Status.Phase = mcallv1.McallTaskPhaseFailed
+			task.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+			task.Status.Result = &mcallv1.McallTaskResult{
+				ErrorCode:    "-1",
+				ErrorMessage: fmt.Sprintf("Failed to process input sources: %v", err),
+			}
+			if updateErr := r.Status().Update(ctx, task); updateErr != nil {
+				logger.Error(updateErr, "Failed to update task status", "task", task.Name)
+			}
+			return ctrl.Result{}, err
+		}
+
+		// Use processed input if InputTemplate was specified
+		if task.Spec.InputTemplate != "" {
+			task.Spec.Input = processedInput
+			logger.Info("Using processed input from template",
+				"task", task.Name,
+				"input", truncateString(processedInput, 200))
+		}
+
+		// Merge environment variables
+		if task.Spec.Environment == nil {
+			task.Spec.Environment = make(map[string]string)
+		}
+		for k, v := range envVars {
+			task.Spec.Environment[k] = v
+		}
+
+		logger.Info("Injected data from input sources",
+			"task", task.Name,
+			"sourceCount", len(task.Spec.InputSources),
+			"envVars", len(envVars))
 	}
 
 	// Execute the actual task based on type
@@ -1341,4 +1657,116 @@ func removeString(slice []string, s string) []string {
 		}
 	}
 	return result
+}
+
+// renderTemplate replaces ${VAR_NAME} with actual values
+func renderTemplate(template string, data map[string]interface{}) string {
+	result := template
+
+	for key, value := range data {
+		placeholder := fmt.Sprintf("${%s}", key)
+		valueStr := fmt.Sprintf("%v", value)
+		result = strings.ReplaceAll(result, placeholder, valueStr)
+	}
+
+	return result
+}
+
+// extractJSONPath extracts value from JSON string using simple path expression
+// Supports simple paths like: $.field, $.nested.field
+// For complex JSONPath, consider using github.com/oliveagle/jsonpath library
+func extractJSONPath(jsonStr string, path string) (string, error) {
+	var data interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return "", fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// Remove leading "$."
+	path = strings.TrimPrefix(path, "$.")
+	if path == "$" || path == "" {
+		// Return whole JSON
+		jsonBytes, _ := json.Marshal(data)
+		return string(jsonBytes), nil
+	}
+
+	// Split path by "."
+	fields := strings.Split(path, ".")
+	current := data
+
+	for _, field := range fields {
+		// Check for array index like "items[0]"
+		if strings.Contains(field, "[") {
+			re := regexp.MustCompile(`^([^\[]+)\[(\d+)\]$`)
+			matches := re.FindStringSubmatch(field)
+			if len(matches) == 3 {
+				fieldName := matches[1]
+				index, _ := strconv.Atoi(matches[2])
+
+				// Get field
+				if m, ok := current.(map[string]interface{}); ok {
+					current = m[fieldName]
+				} else {
+					return "", fmt.Errorf("field %s not found", fieldName)
+				}
+
+				// Get array element
+				if arr, ok := current.([]interface{}); ok {
+					if index < len(arr) {
+						current = arr[index]
+					} else {
+						return "", fmt.Errorf("array index %d out of bounds", index)
+					}
+				} else {
+					return "", fmt.Errorf("field %s is not an array", fieldName)
+				}
+				continue
+			}
+		}
+
+		// Regular field access
+		if m, ok := current.(map[string]interface{}); ok {
+			if val, exists := m[field]; exists {
+				current = val
+			} else {
+				return "", fmt.Errorf("field %s not found in JSON", field)
+			}
+		} else {
+			return "", fmt.Errorf("cannot access field %s in non-object", field)
+		}
+	}
+
+	// Convert result to string
+	switch v := current.(type) {
+	case string:
+		return v, nil
+	case float64, int, int64, bool:
+		return fmt.Sprintf("%v", v), nil
+	default:
+		// Object or array - return as JSON
+		jsonBytes, _ := json.Marshal(v)
+		return string(jsonBytes), nil
+	}
+}
+
+// truncateString truncates a string for logging
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// maskSensitiveData masks potentially sensitive information
+var sensitivePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(password|passwd|pwd)["\s:=]+([^\s"]+)`),
+	regexp.MustCompile(`(?i)(api[-_]?key|apikey)["\s:=]+([^\s"]+)`),
+	regexp.MustCompile(`(?i)(token|secret)["\s:=]+([^\s"]+)`),
+}
+
+func maskSensitiveData(output string) string {
+	masked := output
+	for _, pattern := range sensitivePatterns {
+		masked = pattern.ReplaceAllString(masked, "$1=***MASKED***")
+	}
+	return masked
 }
