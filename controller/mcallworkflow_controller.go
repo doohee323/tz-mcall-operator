@@ -212,7 +212,7 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 		// Preserve DAG history (DAG will be nil for next run)
 		workflow.Status.DAG = nil
 		workflow.Status.DAGHistory = preservedHistory
-		
+
 		// Update status with retry on conflict
 		resetErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			// Get the latest version
@@ -228,7 +228,7 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
 			latest.Status.StartTime = nil
 			latest.Status.CompletionTime = nil
-			latest.Status.DAG = nil // Clear current DAG
+			latest.Status.DAG = nil                     // Clear current DAG
 			latest.Status.DAGHistory = preservedHistory // Preserve history
 
 			return r.Status().Update(ctx, latest)
@@ -239,8 +239,8 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
-		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)", 
-			"workflow", workflow.Name, 
+		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)",
+			"workflow", workflow.Name,
 			"historyCount", len(preservedHistory))
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
@@ -604,11 +604,21 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 			taskExists = false
 		}
 
+		// Get task template for default type
+		var taskTemplate mcallv1.McallTask
+		taskType := "cmd" // default
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      taskSpec.TaskRef.Name,
+			Namespace: taskSpec.TaskRef.Namespace,
+		}, &taskTemplate); err == nil {
+			taskType = taskTemplate.Spec.Type
+		}
+
 		// Create node
 		node := mcallv1.DAGNode{
 			ID:       taskSpec.Name,
 			Name:     taskSpec.Name,
-			Type:     "cmd", // default
+			Type:     taskType, // Use template type
 			Phase:    mcallv1.McallTaskPhasePending,
 			TaskRef:  taskSpec.TaskRef.Name,
 			Position: &mcallv1.NodePosition{X: nodePositions[idx].X, Y: nodePositions[idx].Y},
@@ -619,7 +629,7 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 			node.Phase = task.Status.Phase
 			node.StartTime = task.Status.StartTime
 			node.EndTime = task.Status.CompletionTime
-			node.Type = task.Spec.Type
+			node.Type = task.Spec.Type // Override with actual task type
 			node.Input = truncateForUI(task.Spec.Input, 200)
 
 			// Calculate duration
