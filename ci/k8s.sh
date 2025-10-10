@@ -187,22 +187,40 @@ cleanup_conflicting_resources() {
 
 # Deploy CRDs
 deploy_crds() {
-    echo "🔧 Deploying CRDs..."
+    echo "🔧 Applying CRDs..."
     
     # Apply CRD manifests from Helm chart templates
+    # Note: Helm doesn't update CRDs on upgrade, so we apply them explicitly
     if [ -d "helm/mcall-operator/templates/crds" ]; then
         echo "Applying CRDs from helm/mcall-operator/templates/crds/"
-        kubectl apply -f helm/mcall-operator/templates/crds/ || echo "Failed to apply CRDs"
+        
+        # Use kubectl apply (not create) to update existing CRDs
+        kubectl apply -f helm/mcall-operator/templates/crds/ 2>&1 | tee /tmp/crd-apply.log
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ CRDs applied successfully"
+        else
+            echo "⚠️  CRD apply had issues, checking status..."
+            cat /tmp/crd-apply.log
+        fi
         
         # Wait for CRDs to be established
-        echo "Waiting for CRDs to be established..."
-        kubectl wait --for condition=established --timeout=60s crd/mcalltasks.mcall.tz.io || echo "McallTask CRD not established"
-        kubectl wait --for condition=established --timeout=60s crd/mcallworkflows.mcall.tz.io || echo "McallWorkflow CRD not established"
+        echo "⏳ Waiting for CRDs to be established..."
+        kubectl wait --for condition=established --timeout=60s crd/mcalltasks.mcall.tz.io 2>&1 || echo "⚠️  McallTask CRD not established yet"
+        kubectl wait --for condition=established --timeout=60s crd/mcallworkflows.mcall.tz.io 2>&1 || echo "⚠️  McallWorkflow CRD not established yet"
         
-        echo "✅ CRD deployment completed"
+        # Verify CRDs are present
+        echo "📋 Verifying CRDs..."
+        if kubectl get crd mcalltasks.mcall.tz.io >/dev/null 2>&1 && kubectl get crd mcallworkflows.mcall.tz.io >/dev/null 2>&1; then
+            echo "✅ All CRDs verified"
+        else
+            echo "❌ Some CRDs are missing!"
+            kubectl get crd | grep mcall || echo "No mcall CRDs found"
+            return 1
+        fi
     else
         echo "⚠️  CRD directory not found: helm/mcall-operator/templates/crds/"
-        echo "CRDs will be installed by Helm chart..."
+        echo "CRDs will be installed by Helm chart (first install only)..."
     fi
 }
 
@@ -407,30 +425,54 @@ cleanup_deployment() {
 
 # Main deployment function
 deploy_to_kubernetes() {
-    echo "🚀 Starting CRD deployment to Kubernetes..."
+    echo "🚀 Starting deployment to Kubernetes..."
     
     # Install required tools
     install_helm
     install_kubectl
     
-    # Force clean up all mcall resources first
-    force_cleanup_all_mcall_resources
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     
-    # Deploy CRDs first
+    # Check if this is a fresh install or upgrade
+    HELM_BIN="/tmp/helm/linux-amd64/helm"
+    if [ -f "$HELM_BIN" ]; then
+        HELM_CMD="$HELM_BIN"
+    else
+        HELM_CMD="helm"
+    fi
+    
+    # Check if Helm release exists
+    if $HELM_CMD list -n ${NAMESPACE} 2>/dev/null | grep -q ${HELM_RELEASE_NAME}; then
+        echo "📦 Existing Helm release found: ${HELM_RELEASE_NAME}"
+        DEPLOYMENT_TYPE="upgrade"
+    else
+        echo "📦 No existing Helm release found, will perform fresh install"
+        DEPLOYMENT_TYPE="install"
+        
+        # For fresh install, clean up any orphaned resources
+        cleanup_conflicting_resources
+    fi
+    
+    # Always update CRDs first (Helm doesn't update CRDs on upgrade)
+    echo "🔧 Updating CRDs..."
     deploy_crds
     
-    # Deploy Helm chart
+    # Deploy Helm chart (install or upgrade)
+    echo "🚀 Deploying Helm chart (${DEPLOYMENT_TYPE})..."
     deploy_helm_chart
     
     # Verify deployment
     verify_deployment
     
-    # Test CRD functionality (optional)
+    # Test CRD functionality (optional, only for dev)
     if [ "${NAMESPACE}" != "mcall-system" ]; then
         test_crd_functionality
     fi
     
-    echo "🎉 CRD deployment completed successfully!"
+    echo "🎉 Deployment completed successfully!"
+    echo "   Deployment type: ${DEPLOYMENT_TYPE}"
+    echo "   Namespace: ${NAMESPACE}"
+    echo "   Release: ${HELM_RELEASE_NAME}"
 }
 
 # Main execution logic
