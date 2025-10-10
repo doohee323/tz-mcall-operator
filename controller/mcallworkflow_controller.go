@@ -134,8 +134,13 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 		return ctrl.Result{}, nil
 	}
 
-	// Update status with DAG
+	// Update status with DAG (with retry on conflict)
 	if err := r.Status().Update(ctx, workflow); err != nil {
+		if apierrors.IsConflict(err) {
+			// Conflict error - requeue immediately to retry
+			log.Info("Conflict updating workflow status with DAG, will retry", "workflow", workflow.Name)
+			return ctrl.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -188,11 +193,16 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 		workflow.Status.Phase = mcallv1.McallWorkflowPhasePending
 		workflow.Status.StartTime = nil
 		workflow.Status.CompletionTime = nil
-		
+
 		// Keep current DAG as last run (will be replaced on next run)
 		// DAG and DAGHistory are preserved
 		
 		if err := r.Status().Update(ctx, workflow); err != nil {
+			if apierrors.IsConflict(err) {
+				// Conflict error - requeue immediately to retry
+				log.Info("Conflict updating workflow status on reset, will retry", "workflow", workflow.Name)
+				return ctrl.Result{Requeue: true}, nil
+			}
 			log.Error(err, "Failed to reset workflow status", "workflow", workflow.Name)
 			return ctrl.Result{}, err
 		}
