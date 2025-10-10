@@ -192,28 +192,13 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			log.Error(err, "Failed to build final DAG before cleanup", "workflow", workflow.Name)
 		}
 
-		// Store DAG history before reset (keep last 5 runs)
-		var preservedHistory []mcallv1.WorkflowDAG
+		// Store current DAG before reset
+		var currentDAG *mcallv1.WorkflowDAG
 		if workflow.Status.DAG != nil {
-			history := workflow.Status.DAGHistory
-			if history == nil {
-				history = []mcallv1.WorkflowDAG{}
-			}
-
-			// Prepend current DAG to history
-			history = append([]mcallv1.WorkflowDAG{*workflow.Status.DAG}, history...)
-
-			// Keep only last 5 runs
-			if len(history) > 5 {
-				history = history[:5]
-			}
-
-			preservedHistory = history
-
-			log.Info("Prepared DAG for history",
+			currentDAG = workflow.Status.DAG
+			log.Info("Storing current DAG for history",
 				"workflow", workflow.Name,
-				"runID", workflow.Status.DAG.RunID,
-				"historyCount", len(history))
+				"runID", workflow.Status.DAG.RunID)
 		}
 
 		// Delete workflow-specific task instances (not template tasks)
@@ -221,15 +206,6 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			log.Error(err, "Failed to delete workflow tasks", "workflow", workflow.Name)
 			return ctrl.Result{}, err
 		}
-
-		// Reset workflow status to Pending for next scheduled run
-		workflow.Status.Phase = mcallv1.McallWorkflowPhasePending
-		workflow.Status.StartTime = nil
-		workflow.Status.CompletionTime = nil
-
-		// Preserve DAG history (DAG will be nil for next run)
-		workflow.Status.DAG = nil
-		workflow.Status.DAGHistory = preservedHistory
 
 		// Update status with retry on conflict
 		resetErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -242,12 +218,39 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 				return err
 			}
 
+			// Build history from latest version + current DAG
+			var newHistory []mcallv1.WorkflowDAG
+			if currentDAG != nil {
+				// Start with existing history from latest version
+				existingHistory := latest.Status.DAGHistory
+				if existingHistory == nil {
+					existingHistory = []mcallv1.WorkflowDAG{}
+				}
+
+				// Prepend current DAG to history
+				newHistory = append([]mcallv1.WorkflowDAG{*currentDAG}, existingHistory...)
+
+				// Keep only last 5 runs
+				if len(newHistory) > 5 {
+					newHistory = newHistory[:5]
+				}
+
+				log.Info("Updated DAG history",
+					"workflow", workflow.Name,
+					"runID", currentDAG.RunID,
+					"existingHistoryCount", len(existingHistory),
+					"newHistoryCount", len(newHistory))
+			} else {
+				// No current DAG, keep existing history
+				newHistory = latest.Status.DAGHistory
+			}
+
 			// Apply changes to latest version
 			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
 			latest.Status.StartTime = nil
 			latest.Status.CompletionTime = nil
-			latest.Status.DAG = nil                     // Clear current DAG
-			latest.Status.DAGHistory = preservedHistory // Preserve history
+			latest.Status.DAG = nil         // Clear current DAG
+			latest.Status.DAGHistory = newHistory // Preserve history
 
 			return r.Status().Update(ctx, latest)
 		})
@@ -258,8 +261,7 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 		}
 
 		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)",
-			"workflow", workflow.Name,
-			"historyCount", len(preservedHistory))
+			"workflow", workflow.Name)
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
 
