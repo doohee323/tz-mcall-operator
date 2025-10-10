@@ -226,31 +226,48 @@ deploy_crds() {
                 kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
                     python3 -c "import sys, json; data = json.load(sys.stdin); print('    Fields:', ', '.join(sorted(data.keys())[:5]), '...')" 2>/dev/null || echo "    (Could not read current fields)"
                 
-                echo "  🔄 Using replace --force to update schema..."
-                kubectl replace --force -f "$crd_file" 2>&1 | sed 's/^/    /'
+                # Delete existing CRD first
+                echo "  🗑️  Deleting existing CRD..."
+                kubectl delete crd "$CRD_NAME" --timeout=30s 2>&1 | sed 's/^/    /'
                 
-                if [ $? -eq 0 ]; then
-                    echo "  ✅ Replace succeeded"
-                    
-                    # Wait a moment for API server to process
+                # Wait for deletion to complete
+                echo "  ⏳ Waiting for CRD deletion to complete..."
+                TIMEOUT=30
+                COUNTER=0
+                while kubectl get crd "$CRD_NAME" >/dev/null 2>&1 && [ $COUNTER -lt $TIMEOUT ]; do
+                    sleep 2
+                    COUNTER=$((COUNTER + 2))
+                done
+                
+                if kubectl get crd "$CRD_NAME" >/dev/null 2>&1; then
+                    echo "  ⚠️  CRD deletion timed out, force removing finalizers..."
+                    kubectl patch crd "$CRD_NAME" --type json -p='[{"op": "remove", "path": "/metadata/finalizers"}]' 2>&1 | sed 's/^/    /' || true
+                    kubectl delete crd "$CRD_NAME" --force --grace-period=0 2>&1 | sed 's/^/    /' || true
                     sleep 3
-                    
-                    # Verify new fields are present
-                    echo "  🔍 Verifying update..."
-                    kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
-                        python3 -c "import sys, json; data = json.load(sys.stdin); fields = list(data.keys()); print('    New fields:', ', '.join(sorted(fields)[:5]), '...'); print('    Has inputSources:', 'inputSources' in fields); print('    Has inputTemplate:', 'inputTemplate' in fields)" 2>/dev/null || echo "    (Could not verify new fields)"
-                else
-                    echo "  ❌ Replace failed for $CRD_NAME"
                 fi
-            else
-                echo "  📦 CRD doesn't exist, creating..."
-                kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'
                 
-                if [ $? -eq 0 ]; then
-                    echo "  ✅ Create succeeded"
-                else
-                    echo "  ❌ Create failed for $CRD_NAME"
-                fi
+                echo "  ✅ Deletion completed"
+            else
+                echo "  📦 CRD doesn't exist in cluster"
+            fi
+            
+            # Create new CRD
+            echo "  📦 Creating CRD with new schema..."
+            kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'
+            
+            if [ $? -eq 0 ]; then
+                echo "  ✅ Create succeeded"
+                
+                # Wait for API server to process
+                sleep 3
+                
+                # Verify new fields are present
+                echo "  🔍 Verifying new CRD..."
+                kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
+                    python3 -c "import sys, json; data = json.load(sys.stdin); fields = list(data.keys()); print('    Total fields:', len(fields)); print('    Has inputSources:', 'inputSources' in fields); print('    Has inputTemplate:', 'inputTemplate' in fields)" 2>/dev/null || echo "    (Could not verify new fields)"
+            else
+                echo "  ❌ Create failed for $CRD_NAME"
+                return 1
             fi
         done
         
