@@ -153,7 +153,7 @@ pipeline {
             }
         }
 
-        stage('Deploy CRDs') {
+        stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
                     script {
@@ -162,46 +162,21 @@ pipeline {
                                 sh '''
                                     export PATH=$PATH:.:
                                     chmod +x ci/k8s.sh
-                                    echo "🚀 Starting CRD deployment..."
-                                    echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
-                                    echo "  GIT_BRANCH: ${GIT_BRANCH}"
-                                    echo "  NAMESPACE: ${NAMESPACE}"
-                                    echo "  VALUES_FILE: ${VALUES_FILE}"
-                                    ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} deploy
-                                '''
-                            }
-                        } catch (err) {
-                            echo "CRD deployment failed: ${err}"
-                            error("Stopping pipeline due to CRD deployment failure.")
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Deploy Helm Chart') {
-            steps {
-                container('kubectl') {
-                    script {
-                        try {
-                            withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
-                                sh '''
-                                    export PATH=$PATH:.:
-                                    chmod +x ci/k8s.sh
-                                    echo "🚀 Starting Helm chart deployment using k8s.sh..."
+                                    echo "🚀 Starting Kubernetes deployment..."
                                     echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
                                     echo "  GIT_BRANCH: ${GIT_BRANCH}"
                                     echo "  NAMESPACE: ${NAMESPACE}"
                                     echo "  VALUES_FILE: ${VALUES_FILE}"
                                     
+                                    # Single deployment call: cleanup, CRDs, and Helm chart
                                     ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} deploy
                                     
-                                    echo "✅ Helm chart deployment completed"
+                                    echo "✅ Kubernetes deployment completed"
                                 '''
                             }
                         } catch (err) {
-                            echo "Helm chart deployment failed: ${err}"
-                            error("Stopping pipeline due to Helm deployment failure.")
+                            echo "Kubernetes deployment failed: ${err}"
+                            error("Stopping pipeline due to deployment failure.")
                         }
                     }
                 }
