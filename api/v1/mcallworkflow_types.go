@@ -139,6 +139,9 @@ type McallWorkflowStatus struct {
 
 	// LastRunTime is the time when the workflow was last executed
 	LastRunTime *metav1.Time `json:"lastRunTime,omitempty"`
+
+	// DAG representation for UI visualization
+	DAG *WorkflowDAG `json:"dag,omitempty"`
 }
 
 // TaskStatus represents the status of a single task in the workflow
@@ -188,4 +191,118 @@ type McallWorkflowList struct {
 
 func init() {
 	SchemeBuilder.Register(&McallWorkflow{}, &McallWorkflowList{})
+}
+
+// WorkflowDAG represents the DAG structure of a workflow for UI visualization
+type WorkflowDAG struct {
+	// Nodes is the list of task nodes in the DAG
+	Nodes []DAGNode `json:"nodes"`
+
+	// Edges is the list of edges connecting nodes
+	Edges []DAGEdge `json:"edges"`
+
+	// Layout algorithm used for positioning (dagre, elk, auto)
+	Layout string `json:"layout,omitempty"`
+
+	// Metadata contains summary information about the DAG
+	Metadata DAGMetadata `json:"metadata,omitempty"`
+}
+
+// DAGNode represents a task node in the DAG
+type DAGNode struct {
+	// ID is the unique identifier for the node (task name)
+	ID string `json:"id"`
+
+	// Name is the display name of the task
+	Name string `json:"name"`
+
+	// Type is the task type (cmd, get, post)
+	Type string `json:"type"`
+
+	// Phase is the current execution phase
+	Phase McallTaskPhase `json:"phase"`
+
+	// StartTime is when the task started
+	StartTime *metav1.Time `json:"startTime,omitempty"`
+
+	// EndTime is when the task completed
+	EndTime *metav1.Time `json:"endTime,omitempty"`
+
+	// Duration is the execution duration in human-readable format
+	Duration string `json:"duration,omitempty"`
+
+	// Input is the task input command or URL
+	Input string `json:"input,omitempty"`
+
+	// Output is the task execution output (truncated for UI)
+	Output string `json:"output,omitempty"`
+
+	// ErrorCode is the execution result code
+	ErrorCode string `json:"errorCode,omitempty"`
+
+	// ErrorMessage is the error message if failed
+	ErrorMessage string `json:"errorMessage,omitempty"`
+
+	// Position for UI layout
+	Position *NodePosition `json:"position,omitempty"`
+
+	// Retries is the number of retry attempts
+	Retries int32 `json:"retries,omitempty"`
+
+	// TaskRef is the original template task reference
+	TaskRef string `json:"taskRef,omitempty"`
+}
+
+// DAGEdge represents a dependency edge between tasks
+type DAGEdge struct {
+	// ID is the unique identifier for the edge
+	ID string `json:"id"`
+
+	// Source is the source node ID
+	Source string `json:"source"`
+
+	// Target is the target node ID
+	Target string `json:"target"`
+
+	// Type is the edge type (dependency, success, failure, always)
+	Type string `json:"type,omitempty"`
+
+	// Condition is the execution condition
+	Condition string `json:"condition,omitempty"`
+
+	// Label for display
+	Label string `json:"label,omitempty"`
+}
+
+// NodePosition represents the x,y coordinates of a node
+type NodePosition struct {
+	// X coordinate (in pixels)
+	X int `json:"x"`
+
+	// Y coordinate (in pixels)
+	Y int `json:"y"`
+}
+
+// DAGMetadata contains summary statistics about the DAG
+type DAGMetadata struct {
+	// TotalNodes is the total number of nodes
+	TotalNodes int `json:"totalNodes"`
+
+	// TotalEdges is the total number of edges
+	TotalEdges int `json:"totalEdges"`
+
+	// SuccessCount is the number of succeeded tasks
+	SuccessCount int `json:"successCount"`
+
+	// FailureCount is the number of failed tasks
+	FailureCount int `json:"failureCount"`
+
+	// RunningCount is the number of running tasks
+	RunningCount int `json:"runningCount"`
+
+	// PendingCount is the number of pending tasks
+	PendingCount int `json:"pendingCount"`
+
+	// SkippedCount is the number of skipped tasks
+	SkippedCount int `json:"skippedCount"`
 }

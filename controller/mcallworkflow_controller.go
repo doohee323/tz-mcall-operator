@@ -102,6 +102,12 @@ func (r *McallWorkflowReconciler) handleWorkflowPending(ctx context.Context, wor
 func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, workflow *mcallv1.McallWorkflow) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
+	// Build/Update DAG for UI visualization
+	if err := r.buildWorkflowDAG(ctx, workflow); err != nil {
+		log.Error(err, "Failed to build workflow DAG", "workflow", workflow.Name)
+		// Continue even if DAG build fails
+	}
+
 	// Check status of all tasks in the workflow
 	allTasksCompleted, hasFailedTasks, err := r.checkWorkflowTasksStatus(ctx, workflow)
 	if err != nil {
@@ -115,11 +121,22 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 			workflow.Status.Phase = mcallv1.McallWorkflowPhaseSucceeded
 		}
 		workflow.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+		
+		// Build final DAG state
+		if err := r.buildWorkflowDAG(ctx, workflow); err != nil {
+			log.Error(err, "Failed to build final workflow DAG", "workflow", workflow.Name)
+		}
+		
 		if err := r.Status().Update(ctx, workflow); err != nil {
 			return ctrl.Result{}, err
 		}
 		log.Info("Workflow completed", "workflow", workflow.Name, "phase", workflow.Status.Phase)
 		return ctrl.Result{}, nil
+	}
+
+	// Update status with DAG
+	if err := r.Status().Update(ctx, workflow); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// Continue monitoring
@@ -471,4 +488,179 @@ func (r *McallWorkflowReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcallv1.McallWorkflow{}).
 		Complete(r)
+}
+
+// buildWorkflowDAG builds the DAG representation of the workflow for UI visualization
+func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow *mcallv1.McallWorkflow) error {
+	log := log.FromContext(ctx)
+
+	dag := &mcallv1.WorkflowDAG{
+		Nodes:  []mcallv1.DAGNode{},
+		Edges:  []mcallv1.DAGEdge{},
+		Layout: "dagre",
+		Metadata: mcallv1.DAGMetadata{
+			TotalNodes: len(workflow.Spec.Tasks),
+		},
+	}
+
+	// Build nodes from tasks
+	nodePositions := r.calculateNodePositions(len(workflow.Spec.Tasks))
+	
+	for idx, taskSpec := range workflow.Spec.Tasks {
+		taskName := fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name)
+
+		// Get actual task status from Kubernetes
+		var task mcallv1.McallTask
+		taskExists := true
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      taskName,
+			Namespace: workflow.Namespace,
+		}, &task); err != nil {
+			if !apierrors.IsNotFound(err) {
+				log.Error(err, "Failed to get task for DAG", "task", taskName)
+			}
+			taskExists = false
+		}
+
+		// Create node
+		node := mcallv1.DAGNode{
+			ID:       taskSpec.Name,
+			Name:     taskSpec.Name,
+			Type:     "cmd", // default
+			Phase:    mcallv1.McallTaskPhasePending,
+			TaskRef:  taskSpec.TaskRef.Name,
+			Position: &mcallv1.NodePosition{X: nodePositions[idx].X, Y: nodePositions[idx].Y},
+		}
+
+		// Fill in task details if task exists
+		if taskExists {
+			node.Phase = task.Status.Phase
+			node.StartTime = task.Status.StartTime
+			node.EndTime = task.Status.CompletionTime
+			node.Type = task.Spec.Type
+			node.Input = truncateForUI(task.Spec.Input, 200)
+
+			// Calculate duration
+			if task.Status.StartTime != nil {
+				if task.Status.CompletionTime != nil {
+					duration := task.Status.CompletionTime.Sub(task.Status.StartTime.Time)
+					node.Duration = formatDuration(duration)
+				} else if task.Status.Phase == mcallv1.McallTaskPhaseRunning {
+					duration := time.Since(task.Status.StartTime.Time)
+					node.Duration = formatDuration(duration) + " (running)"
+				}
+			}
+
+			// Task result
+			if task.Status.Result != nil {
+				node.Output = truncateForUI(task.Status.Result.Output, 500)
+				node.ErrorCode = task.Status.Result.ErrorCode
+				node.ErrorMessage = task.Status.Result.ErrorMessage
+			}
+
+			// Update metadata counts
+			switch node.Phase {
+			case mcallv1.McallTaskPhaseSucceeded:
+				dag.Metadata.SuccessCount++
+			case mcallv1.McallTaskPhaseFailed:
+				dag.Metadata.FailureCount++
+			case mcallv1.McallTaskPhaseRunning:
+				dag.Metadata.RunningCount++
+			case mcallv1.McallTaskPhasePending:
+				dag.Metadata.PendingCount++
+			case mcallv1.McallTaskPhaseSkipped:
+				dag.Metadata.SkippedCount++
+			}
+		} else {
+			dag.Metadata.PendingCount++
+		}
+
+		dag.Nodes = append(dag.Nodes, node)
+	}
+
+	// Build edges from dependencies and conditions
+	for _, taskSpec := range workflow.Spec.Tasks {
+		// Standard dependency edges
+		for _, dep := range taskSpec.Dependencies {
+			edge := mcallv1.DAGEdge{
+				ID:     fmt.Sprintf("%s-%s", dep, taskSpec.Name),
+				Source: dep,
+				Target: taskSpec.Name,
+				Type:   "dependency",
+			}
+
+			// Add condition information
+			if taskSpec.Condition != nil {
+				edge.Type = taskSpec.Condition.When
+				edge.Condition = taskSpec.Condition.When
+				switch taskSpec.Condition.When {
+				case "success":
+					edge.Label = "✓"
+				case "failure":
+					edge.Label = "✗"
+				case "always":
+					edge.Label = "*"
+				default:
+					edge.Label = taskSpec.Condition.When
+				}
+			}
+
+			dag.Edges = append(dag.Edges, edge)
+			dag.Metadata.TotalEdges++
+		}
+	}
+
+	// Update workflow status
+	workflow.Status.DAG = dag
+
+	log.Info("Built workflow DAG",
+		"workflow", workflow.Name,
+		"nodes", len(dag.Nodes),
+		"edges", len(dag.Edges),
+		"success", dag.Metadata.SuccessCount,
+		"running", dag.Metadata.RunningCount,
+		"failed", dag.Metadata.FailureCount)
+
+	return nil
+}
+
+// calculateNodePositions calculates positions for nodes in a simple layered layout
+func (r *McallWorkflowReconciler) calculateNodePositions(nodeCount int) []mcallv1.NodePosition {
+	positions := make([]mcallv1.NodePosition, nodeCount)
+	
+	// Simple vertical layout with centering
+	nodeHeight := 100
+	verticalSpacing := 150
+	horizontalOffset := 250
+
+	for i := 0; i < nodeCount; i++ {
+		positions[i] = mcallv1.NodePosition{
+			X: horizontalOffset,
+			Y: 100 + (i * (nodeHeight + verticalSpacing)),
+		}
+	}
+
+	return positions
+}
+
+// truncateForUI truncates string for UI display
+func truncateForUI(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// formatDuration formats duration in human-readable format
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%.1fm", d.Minutes())
+	}
+	return fmt.Sprintf("%.1fh", d.Hours())
 }
