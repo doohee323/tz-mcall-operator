@@ -604,7 +604,7 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 	}
 
 	// Build nodes from tasks
-	nodePositions := r.calculateNodePositions(len(workflow.Spec.Tasks))
+	nodePositions := r.calculateNodePositions(workflow)
 
 	for idx, taskSpec := range workflow.Spec.Tasks {
 		taskName := fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name)
@@ -632,6 +632,13 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 			taskType = taskTemplate.Spec.Type
 		}
 
+		// Get position for this task
+		pos, exists := nodePositions[taskSpec.Name]
+		if !exists {
+			// Fallback position if not found
+			pos = mcallv1.NodePosition{X: 250, Y: 100 + (idx * 250)}
+		}
+
 		// Create node
 		node := mcallv1.DAGNode{
 			ID:       taskSpec.Name,
@@ -639,7 +646,7 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 			Type:     taskType, // Use template type
 			Phase:    mcallv1.McallTaskPhasePending,
 			TaskRef:  taskSpec.TaskRef.Name,
-			Position: &mcallv1.NodePosition{X: nodePositions[idx].X, Y: nodePositions[idx].Y},
+			Position: &pos,
 		}
 
 		// Fill in task details if task exists
@@ -748,18 +755,49 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 }
 
 // calculateNodePositions calculates positions for nodes in a simple layered layout
-func (r *McallWorkflowReconciler) calculateNodePositions(nodeCount int) []mcallv1.NodePosition {
-	positions := make([]mcallv1.NodePosition, nodeCount)
+func (r *McallWorkflowReconciler) calculateNodePositions(workflow *mcallv1.McallWorkflow) map[string]mcallv1.NodePosition {
+	positions := make(map[string]mcallv1.NodePosition)
 
-	// Simple vertical layout with centering
-	nodeHeight := 100
-	verticalSpacing := 150
-	horizontalOffset := 250
+	// Constants for layout
+	levelHeight := 250
+	nodeSpacing := 300
+	startY := 100
 
-	for i := 0; i < nodeCount; i++ {
-		positions[i] = mcallv1.NodePosition{
-			X: horizontalOffset,
-			Y: 100 + (i * (nodeHeight + verticalSpacing)),
+	// Build dependency graph to determine levels
+	taskLevels := make(map[string]int)
+	tasksByLevel := make(map[int][]string)
+
+	// First pass: assign levels based on dependencies
+	for _, taskSpec := range workflow.Spec.Tasks {
+		level := 0
+		if len(taskSpec.Dependencies) > 0 {
+			// Task depends on others, place it one level below its dependencies
+			maxDepLevel := 0
+			for _, dep := range taskSpec.Dependencies {
+				if depLevel, exists := taskLevels[dep]; exists {
+					if depLevel > maxDepLevel {
+						maxDepLevel = depLevel
+					}
+				}
+			}
+			level = maxDepLevel + 1
+		}
+		taskLevels[taskSpec.Name] = level
+		tasksByLevel[level] = append(tasksByLevel[level], taskSpec.Name)
+	}
+
+	// Second pass: calculate positions
+	for level, tasks := range tasksByLevel {
+		y := startY + (level * levelHeight)
+		totalWidth := len(tasks) * nodeSpacing
+		startX := 250 - (totalWidth / 2) + (nodeSpacing / 2)
+
+		for i, taskName := range tasks {
+			x := startX + (i * nodeSpacing)
+			positions[taskName] = mcallv1.NodePosition{
+				X: x,
+				Y: y,
+			}
 		}
 	}
 
