@@ -162,3 +162,4 @@ git push origin <branch>
 **작성일**: 2025-10-10  
 **관련 이슈**: Jenkins 배포 시 CRD ownership 에러
 
+

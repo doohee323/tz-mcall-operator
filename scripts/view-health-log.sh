@@ -17,3 +17,6 @@ echo ""
 echo "📈 Task 실행 이력:"
 kubectl get mcalltasks -n mcall-dev -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,TIME:.status.completionTime 2>/dev/null | grep -v template || echo "  실행 이력 없음"
 
+
+
+

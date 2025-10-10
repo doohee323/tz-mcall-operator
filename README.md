@@ -189,9 +189,11 @@ AI: [retrieves and displays task status]
 ### Documentation
 
 - [MCP Server Guide](./MCP_SERVER_GUIDE.md) - Complete guide with integration details
-- [MCP Server Quick Start](./mcp-server/QUICKSTART.md) - Get started in 5 minutes
-- [MCP Server Deployment](./mcp-server/DEPLOYMENT.md) - Detailed deployment instructions
-- [Helm Chart Guide](./helm/mcall-operator/README.md) - Helm chart documentation and local testing
+- [Setup Guides](./docs/README.md) - Claude Desktop & Cursor setup
+- [Usage Examples](./docs/USAGE_EXAMPLES.md) - Real-world examples
+- [Quick Start](./mcp-server/QUICKSTART.md) - Get started in 5 minutes
+- [Deployment Guide](./mcp-server/DEPLOYMENT.md) - Detailed deployment
+- [Helm Chart Guide](./helm/mcall-operator/README.md) - Helm documentation
 
 ### Access
 

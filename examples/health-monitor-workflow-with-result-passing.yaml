@@ -15,7 +15,7 @@ metadata:
   namespace: mcall-dev
 spec:
   type: get
-  input: https://us.drillquiz.com
+  input: https://us.drillquiz.com/aaa
   timeout: 30
   retryCount: 0
 

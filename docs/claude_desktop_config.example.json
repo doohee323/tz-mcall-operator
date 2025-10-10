@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "mcall-operator": {
+      "url": "https://mcp-dev.drillquiz.com/mcp",
+      "transport": "sse",
+      "description": "Kubernetes Task and Workflow Manager via tz-mcall-operator"
+    }
+  },
+  
+  "//": "Additional MCP servers can be added below",
+  
+  "//production": {
+    "mcall-operator-prod": {
+      "url": "https://mcp.drillquiz.com/mcp",
+      "transport": "sse",
+      "description": "Production MCP Server"
+    }
+  },
+  
+  "//local-development": {
+    "mcall-operator-local": {
+      "command": "node",
+      "args": ["/Users/dhong/workspaces/tz-mcall-operator/mcp-server/dist/index.js"],
+      "env": {
+        "SERVER_MODE": "stdio",
+        "DEFAULT_NAMESPACE": "mcall-dev"
+      },
+      "description": "Local MCP Server for development"
+    }
+  },
+  
+  "//multiple-environments": "Example with multiple environments",
+  
+  "//example-config": {
+    "dev-cluster": {
+      "url": "https://mcp-dev.drillquiz.com/mcp",
+      "transport": "sse"
+    },
+    "staging-cluster": {
+      "url": "https://mcp-staging.drillquiz.com/mcp",
+      "transport": "sse"
+    },
+    "prod-cluster": {
+      "url": "https://mcp.drillquiz.com/mcp",
+      "transport": "sse"
+    }
+  }
+}
+

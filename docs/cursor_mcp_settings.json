@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mcall-operator": {
+      "url": "https://mcp-dev.drillquiz.com/mcp",
+      "transport": "sse",
+      "description": "Kubernetes Task and Workflow Manager via tz-mcall-operator"
+    }
+  }
+}
+
+
+

@@ -60,7 +60,7 @@ func TestExtractJSONPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := extractJSONPath(tt.jsonStr, tt.path)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("extractJSONPath() expected error but got none")
@@ -211,7 +211,7 @@ func TestCheckTaskCondition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create dependent task  
+			// Create dependent task
 			depTask := &mcallv1.McallTask{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "dep-task",
@@ -466,4 +466,3 @@ func TestTruncateString(t *testing.T) {
 		})
 	}
 }
-
