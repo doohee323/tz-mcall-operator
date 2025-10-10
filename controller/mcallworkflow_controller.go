@@ -182,20 +182,20 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			return err
 		}
 
-		// Create a copy of the referenced task with workflow-specific settings
-		task := &mcallv1.McallTask{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name),
-				Namespace: workflow.Namespace,
-				Labels: map[string]string{
-					"mcall.tz.io/workflow":      workflow.Name,
-					"mcall.tz.io/task":          taskSpec.Name,
-					"mcall.tz.io/original-task": taskRef.Name,
-				},
-				Annotations: make(map[string]string),
+	// Create a copy of the referenced task with workflow-specific settings
+	task := &mcallv1.McallTask{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name),
+			Namespace: workflow.Namespace,
+			Labels: map[string]string{
+				"mcall.tz.io/workflow":      workflow.Name,
+				"mcall.tz.io/task":          taskSpec.Name,
+				"mcall.tz.io/original-task": taskRef.Name,
 			},
-			Spec: referencedTask.Spec,
-		}
+			Annotations: make(map[string]string),
+		},
+		Spec: *referencedTask.Spec.DeepCopy(),
+	}
 
 		// Update dependencies to use workflow task names
 		task.Spec.Dependencies = r.convertDependencies(workflow.Name, taskSpec.Dependencies)
