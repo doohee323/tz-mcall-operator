@@ -270,8 +270,9 @@ deploy_crds() {
                 kubectl annotate crd "$CRD_NAME" meta.helm.sh/release-namespace="${NAMESPACE}" --overwrite 2>&1 | sed 's/^/    /'
                 echo "  ✅ Helm metadata added"
                 
-                # Wait for API server to process
-                sleep 3
+                # Wait for API server to process and load new schema
+                echo "  ⏳ Waiting for API server to load new CRD schema..."
+                sleep 10
                 
                 # Verify new fields are present
                 echo "  🔍 Verifying new CRD..."
