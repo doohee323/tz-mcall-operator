@@ -101,8 +101,19 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [lastValidDAG, setLastValidDAG] = useState<any>(() => {
     try {
       const cached = localStorage.getItem(cacheKey);
-      return cached ? JSON.parse(cached) : null;
-    } catch {
+      if (cached) {
+        const parsedDAG = JSON.parse(cached);
+        console.log('[DAG] 📦 Loaded from localStorage:', {
+          nodes: parsedDAG.nodes?.length || 0,
+          runID: parsedDAG.runID
+        });
+        return parsedDAG;
+      } else {
+        console.log('[DAG] 📦 No cache found in localStorage');
+        return null;
+      }
+    } catch (e) {
+      console.warn('[DAG] ❌ Failed to load from localStorage:', e);
       return null;
     }
   });
@@ -114,17 +125,34 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
       const response = await fetch(`${apiUrl}/api/workflows/${namespace}/${workflowName}/dag`);
       const data = await response.json();
 
+      console.log('[DAG] API Response:', {
+        success: data.success,
+        workflowPhase: data.workflow?.phase,
+        dagNodes: data.dag?.nodes?.length || 0,
+        dagEdges: data.dag?.edges?.length || 0,
+        dagRunID: data.dag?.runID,
+        historyCount: data.dagHistory?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+
       if (data.success) {
         setWorkflow(data.workflow);
         
         // Store history
         if (data.dagHistory) {
           setDAGHistory(data.dagHistory);
+          console.log('[DAG] History updated:', data.dagHistory.length, 'runs');
         }
         
         // Determine which DAG to display
         let displayDAG = data.dag;
         let showingStale = false;
+        
+        console.log('[DAG] Display DAG before processing:', {
+          nodes: displayDAG?.nodes?.length || 0,
+          edges: displayDAG?.edges?.length || 0,
+          runID: displayDAG?.runID
+        });
         
         if (selectedRunID !== 'current' && data.dagHistory) {
           const historicalDAG = data.dagHistory.find((h: any) => h.runID === selectedRunID);
@@ -135,24 +163,34 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         
         // If current DAG is empty but we have lastValidDAG, use it with stale indicator
         if (selectedRunID === 'current' && (!displayDAG.nodes || displayDAG.nodes.length === 0) && lastValidDAG && lastValidDAG.nodes && lastValidDAG.nodes.length > 0) {
+          console.log('[DAG] 🔄 Using cached DAG (API returned empty)');
           displayDAG = lastValidDAG;
           showingStale = true;
         }
         
         // Cache valid DAG for later use (both memory and localStorage)
         if (displayDAG.nodes && displayDAG.nodes.length > 0) {
+          console.log('[DAG] ✅ Caching valid DAG:', {
+            nodes: displayDAG.nodes.length,
+            runID: displayDAG.runID,
+            phase: displayDAG.workflowPhase
+          });
           setLastValidDAG(displayDAG);
           // Save to localStorage for persistence across page reloads
           try {
             localStorage.setItem(cacheKey, JSON.stringify(displayDAG));
+            console.log('[DAG] 💾 Saved to localStorage:', cacheKey);
           } catch (e) {
-            console.warn('Failed to cache DAG to localStorage:', e);
+            console.warn('[DAG] ❌ Failed to cache DAG to localStorage:', e);
           }
           if (selectedRunID === 'current') {
             setIsStaleDAG(false);
           }
         } else if (showingStale) {
+          console.log('[DAG] ⚠️ Showing stale DAG');
           setIsStaleDAG(true);
+        } else {
+          console.log('[DAG] ⚠️ No DAG to display (empty and no cache)');
         }
         
         setMetadata(displayDAG.metadata);
@@ -215,25 +253,37 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           },
         }));
 
+        console.log('[DAG] 🎨 Rendering:', {
+          flowNodes: flowNodes.length,
+          flowEdges: flowEdges.length,
+          isStale: showingStale,
+          selectedRunID
+        });
+
         setNodes(flowNodes);
         setEdges(flowEdges);
+        
+        console.log('[DAG] ✨ Nodes and Edges set successfully');
       }
     } catch (error) {
-      console.error('Error fetching DAG:', error);
+      console.error('[DAG] ❌ Error fetching DAG:', error);
     }
-  }, [namespace, workflowName, selectedRunID, setNodes, setEdges]);
+  }, [namespace, workflowName, selectedRunID, setNodes, setEdges, cacheKey, lastValidDAG]);
 
   // Setup auto-refresh with polling (simple HTTP polling instead of WebSocket)
   useEffect(() => {
+    console.log('[DAG] 🚀 Starting auto-refresh for:', namespace, '/', workflowName);
     setIsConnected(true);
     fetchDAG(); // Initial fetch
 
     // Auto-refresh every 5 seconds
     const interval = setInterval(() => {
+      console.log('[DAG] 🔄 Auto-refresh triggered');
       fetchDAG();
     }, 5000);
 
     return () => {
+      console.log('[DAG] 🛑 Stopping auto-refresh');
       clearInterval(interval);
       setIsConnected(false);
     };
