@@ -92,6 +92,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [dagHistory, setDAGHistory] = useState<any[]>([]);
   const [selectedRunID, setSelectedRunID] = useState<string>('current');
+  const [lastValidDAG, setLastValidDAG] = useState<any>(null); // Cache last valid DAG
+  const [isStaleDAG, setIsStaleDAG] = useState(false); // Track if showing stale data
 
   // Fetch initial DAG
   const fetchDAG = useCallback(async () => {
@@ -110,11 +112,29 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         
         // Determine which DAG to display
         let displayDAG = data.dag;
+        let showingStale = false;
+        
         if (selectedRunID !== 'current' && data.dagHistory) {
           const historicalDAG = data.dagHistory.find((h: any) => h.runID === selectedRunID);
           if (historicalDAG) {
             displayDAG = historicalDAG;
           }
+        }
+        
+        // If current DAG is empty but we have lastValidDAG, use it with stale indicator
+        if (selectedRunID === 'current' && (!displayDAG.nodes || displayDAG.nodes.length === 0) && lastValidDAG && lastValidDAG.nodes && lastValidDAG.nodes.length > 0) {
+          displayDAG = lastValidDAG;
+          showingStale = true;
+        }
+        
+        // Cache valid DAG for later use
+        if (displayDAG.nodes && displayDAG.nodes.length > 0) {
+          setLastValidDAG(displayDAG);
+          if (selectedRunID === 'current') {
+            setIsStaleDAG(false);
+          }
+        } else if (showingStale) {
+          setIsStaleDAG(true);
         }
         
         setMetadata(displayDAG.metadata);
@@ -153,6 +173,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
             border: `2px solid ${getNodeColor(node.phase)}`,
             borderRadius: '8px',
             width: 200,
+            opacity: showingStale ? 0.5 : 1, // Dim when showing stale data
+            filter: showingStale ? 'grayscale(30%)' : 'none',
           },
         }));
 
@@ -163,10 +185,11 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           target: edge.target,
           label: edge.label,
           type: 'smoothstep',
-          animated: edge.type === 'success' || edge.type === 'failure',
+          animated: showingStale ? false : (edge.type === 'success' || edge.type === 'failure'),
           style: {
             stroke: getEdgeColor(edge.type),
             strokeWidth: 2,
+            opacity: showingStale ? 0.4 : 1, // Dim edges when stale
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -235,6 +258,26 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           ↻ Refresh
         </button>
       </div>
+
+      {/* Stale DAG Warning */}
+      {isStaleDAG && selectedRunID === 'current' && (
+        <div style={{
+          padding: '10px 20px',
+          background: '#d1ecf1',
+          borderBottom: '1px solid #bee5eb',
+          color: '#0c5460',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <span>ℹ️</span>
+          <span>
+            <strong>Previous run data</strong> - Workflow is resetting for next schedule. 
+            New DAG will appear when next run starts.
+          </span>
+        </div>
+      )}
 
       {/* Run History Selector */}
       {dagHistory.length > 0 && (

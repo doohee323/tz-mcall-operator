@@ -196,7 +196,7 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 
 		// Keep current DAG as last run (will be replaced on next run)
 		// DAG and DAGHistory are preserved
-		
+
 		if err := r.Status().Update(ctx, workflow); err != nil {
 			if apierrors.IsConflict(err) {
 				// Conflict error - requeue immediately to retry
