@@ -270,6 +270,7 @@ func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workf
 		return err
 	}
 
+	tasksToDelete := []string{}
 	for _, task := range tasks.Items {
 		// Skip template tasks (they have -template suffix)
 		if strings.HasSuffix(task.Name, "-template") {
@@ -281,7 +282,42 @@ func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workf
 			return err
 		}
 
+		tasksToDelete = append(tasksToDelete, task.Name)
 		log.Info("Deleted workflow task", "workflow", workflow.Name, "task", task.Name)
+	}
+
+	// Wait for all tasks to be fully deleted
+	if len(tasksToDelete) > 0 {
+		log.Info("Waiting for tasks to be fully deleted", "workflow", workflow.Name, "count", len(tasksToDelete))
+		timeout := time.After(30 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-timeout:
+				log.Info("Timeout waiting for task deletion, continuing anyway", "workflow", workflow.Name)
+				return nil
+			case <-ticker.C:
+				allDeleted := true
+				for _, taskName := range tasksToDelete {
+					var task mcallv1.McallTask
+					err := r.Get(ctx, types.NamespacedName{
+						Name:      taskName,
+						Namespace: workflow.Namespace,
+					}, &task)
+					if err == nil {
+						// Task still exists
+						allDeleted = false
+						break
+					}
+				}
+				if allDeleted {
+					log.Info("All tasks fully deleted", "workflow", workflow.Name)
+					return nil
+				}
+			}
+		}
 	}
 
 	log.Info("Cleaned up workflow tasks", "workflow", workflow.Name, "deletedCount", len(tasks.Items))
