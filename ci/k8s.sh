@@ -254,9 +254,18 @@ deploy_crds() {
             # Create new CRD
             echo "  📦 Creating CRD with new schema..."
             kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'
+            CREATE_STATUS=${PIPESTATUS[0]}
             
-            if [ $? -eq 0 ]; then
+            if [ $CREATE_STATUS -eq 0 ]; then
                 echo "  ✅ Create succeeded"
+                
+                # Add Helm metadata to CRD for ownership
+                echo "  🏷️  Adding Helm metadata to CRD..."
+                HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
+                kubectl label crd "$CRD_NAME" app.kubernetes.io/managed-by=Helm --overwrite 2>&1 | sed 's/^/    /'
+                kubectl annotate crd "$CRD_NAME" meta.helm.sh/release-name="${HELM_RELEASE_NAME}" --overwrite 2>&1 | sed 's/^/    /'
+                kubectl annotate crd "$CRD_NAME" meta.helm.sh/release-namespace="${NAMESPACE}" --overwrite 2>&1 | sed 's/^/    /'
+                echo "  ✅ Helm metadata added"
                 
                 # Wait for API server to process
                 sleep 3
