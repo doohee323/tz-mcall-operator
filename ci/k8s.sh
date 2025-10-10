@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Kubernetes CRD deployment script
 set -e
@@ -253,10 +253,7 @@ deploy_crds() {
             
             # Create new CRD
             echo "  📦 Creating CRD with new schema..."
-            kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'
-            CREATE_STATUS=${PIPESTATUS[0]}
-            
-            if [ $CREATE_STATUS -eq 0 ]; then
+            if kubectl create -f "$crd_file" 2>&1 | sed 's/^/    /'; then
                 echo "  ✅ Create succeeded"
                 
                 # Add Helm metadata to CRD for ownership
