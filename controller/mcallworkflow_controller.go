@@ -121,12 +121,12 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 			workflow.Status.Phase = mcallv1.McallWorkflowPhaseSucceeded
 		}
 		workflow.Status.CompletionTime = &metav1.Time{Time: time.Now()}
-		
+
 		// Build final DAG state
 		if err := r.buildWorkflowDAG(ctx, workflow); err != nil {
 			log.Error(err, "Failed to build final workflow DAG", "workflow", workflow.Name)
 		}
-		
+
 		if err := r.Status().Update(ctx, workflow); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -150,6 +150,34 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 	if workflow.Spec.Schedule != "" {
 		log.Info("Cleaning up completed scheduled workflow", "workflow", workflow.Name, "phase", workflow.Status.Phase)
 
+		// Build final DAG before cleanup
+		if err := r.buildWorkflowDAG(ctx, workflow); err != nil {
+			log.Error(err, "Failed to build final DAG before cleanup", "workflow", workflow.Name)
+		}
+
+		// Add current DAG to history (keep last 5 runs)
+		if workflow.Status.DAG != nil {
+			history := workflow.Status.DAGHistory
+			if history == nil {
+				history = []mcallv1.WorkflowDAG{}
+			}
+
+			// Prepend current DAG to history
+			history = append([]mcallv1.WorkflowDAG{*workflow.Status.DAG}, history...)
+
+			// Keep only last 5 runs
+			if len(history) > 5 {
+				history = history[:5]
+			}
+
+			workflow.Status.DAGHistory = history
+
+			log.Info("Added DAG to history",
+				"workflow", workflow.Name,
+				"runID", workflow.Status.DAG.RunID,
+				"historyCount", len(history))
+		}
+
 		// Delete workflow-specific task instances (not template tasks)
 		if err := r.deleteWorkflowTasks(ctx, workflow); err != nil {
 			log.Error(err, "Failed to delete workflow tasks", "workflow", workflow.Name)
@@ -160,12 +188,16 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 		workflow.Status.Phase = mcallv1.McallWorkflowPhasePending
 		workflow.Status.StartTime = nil
 		workflow.Status.CompletionTime = nil
+		
+		// Keep current DAG as last run (will be replaced on next run)
+		// DAG and DAGHistory are preserved
+		
 		if err := r.Status().Update(ctx, workflow); err != nil {
 			log.Error(err, "Failed to reset workflow status", "workflow", workflow.Name)
 			return ctrl.Result{}, err
 		}
 
-		log.Info("Workflow reset to Pending for next scheduled run", "workflow", workflow.Name)
+		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)", "workflow", workflow.Name)
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
 
@@ -494,10 +526,16 @@ func (r *McallWorkflowReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow *mcallv1.McallWorkflow) error {
 	log := log.FromContext(ctx)
 
+	// Generate unique RunID
+	runID := fmt.Sprintf("%s-%s", workflow.Name, time.Now().Format("20060102-150405"))
+
 	dag := &mcallv1.WorkflowDAG{
-		Nodes:  []mcallv1.DAGNode{},
-		Edges:  []mcallv1.DAGEdge{},
-		Layout: "dagre",
+		RunID:         runID,
+		Timestamp:     &metav1.Time{Time: time.Now()},
+		WorkflowPhase: workflow.Status.Phase,
+		Nodes:         []mcallv1.DAGNode{},
+		Edges:         []mcallv1.DAGEdge{},
+		Layout:        "dagre",
 		Metadata: mcallv1.DAGMetadata{
 			TotalNodes: len(workflow.Spec.Tasks),
 		},
@@ -505,7 +543,7 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 
 	// Build nodes from tasks
 	nodePositions := r.calculateNodePositions(len(workflow.Spec.Tasks))
-	
+
 	for idx, taskSpec := range workflow.Spec.Tasks {
 		taskName := fmt.Sprintf("%s-%s", workflow.Name, taskSpec.Name)
 
@@ -627,7 +665,7 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 // calculateNodePositions calculates positions for nodes in a simple layered layout
 func (r *McallWorkflowReconciler) calculateNodePositions(nodeCount int) []mcallv1.NodePosition {
 	positions := make([]mcallv1.NodePosition, nodeCount)
-	
+
 	// Simple vertical layout with centering
 	nodeHeight := 100
 	verticalSpacing := 150

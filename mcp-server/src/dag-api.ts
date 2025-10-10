@@ -65,7 +65,7 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
       }
     };
     
-    // Build response with workflow info and DAG
+    // Build response with workflow info, DAG, and history
     const response = {
       success: true,
       workflow: {
@@ -77,7 +77,8 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
         schedule: workflow.spec?.schedule,
         lastRunTime: workflow.status?.lastRunTime
       },
-      dag: dag
+      dag: dag,
+      dagHistory: workflow.status?.dagHistory || []
     };
     
     res.json(response);

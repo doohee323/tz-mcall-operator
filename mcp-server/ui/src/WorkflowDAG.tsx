@@ -90,6 +90,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [workflow, setWorkflow] = useState<WorkflowInfo | null>(null);
   const [metadata, setMetadata] = useState<DAGData['metadata'] | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [dagHistory, setDAGHistory] = useState<any[]>([]);
+  const [selectedRunID, setSelectedRunID] = useState<string>('current');
 
   // Fetch initial DAG
   const fetchDAG = useCallback(async () => {
@@ -100,10 +102,25 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
 
       if (data.success) {
         setWorkflow(data.workflow);
-        setMetadata(data.dag.metadata);
+        
+        // Store history
+        if (data.dagHistory) {
+          setDAGHistory(data.dagHistory);
+        }
+        
+        // Determine which DAG to display
+        let displayDAG = data.dag;
+        if (selectedRunID !== 'current' && data.dagHistory) {
+          const historicalDAG = data.dagHistory.find((h: any) => h.runID === selectedRunID);
+          if (historicalDAG) {
+            displayDAG = historicalDAG;
+          }
+        }
+        
+        setMetadata(displayDAG.metadata);
 
         // Convert DAG nodes to ReactFlow nodes
-        const flowNodes: Node[] = data.dag.nodes.map((node: any) => ({
+        const flowNodes: Node[] = (displayDAG.nodes || []).map((node: any) => ({
           id: node.id,
           type: 'default',
           data: {
@@ -140,7 +157,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         }));
 
         // Convert DAG edges to ReactFlow edges
-        const flowEdges: Edge[] = data.dag.edges.map((edge: any) => ({
+        const flowEdges: Edge[] = (displayDAG.edges || []).map((edge: any) => ({
           id: edge.id,
           source: edge.source,
           target: edge.target,
@@ -163,7 +180,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     } catch (error) {
       console.error('Error fetching DAG:', error);
     }
-  }, [namespace, workflowName, setNodes, setEdges]);
+  }, [namespace, workflowName, selectedRunID, setNodes, setEdges]);
 
   // Setup auto-refresh with polling (simple HTTP polling instead of WebSocket)
   useEffect(() => {
@@ -218,6 +235,49 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           ↻ Refresh
         </button>
       </div>
+
+      {/* Run History Selector */}
+      {dagHistory.length > 0 && (
+        <div style={{
+          padding: '10px 20px',
+          background: '#fff3cd',
+          borderBottom: '1px solid #dee2e6',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '14px'
+        }}>
+          <span style={{ fontWeight: '500' }}>📜 Run History:</span>
+          <select
+            value={selectedRunID}
+            onChange={(e) => setSelectedRunID(e.target.value)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '14px',
+              cursor: 'pointer',
+              flex: 1,
+              maxWidth: '500px'
+            }}
+          >
+            <option value="current">
+              🔄 Current Run (Phase: {workflow?.phase || 'Loading...'})
+            </option>
+            {dagHistory.map((dag: any, idx: number) => (
+              <option key={dag.runID} value={dag.runID}>
+                {idx === 0 && '🕐 '} Run {idx + 1}: {dag.timestamp ? new Date(dag.timestamp).toLocaleString() : dag.runID} - {dag.workflowPhase} 
+                {` (✅${dag.metadata?.successCount || 0} 🔴${dag.metadata?.failureCount || 0})`}
+              </option>
+            ))}
+          </select>
+          {selectedRunID !== 'current' && (
+            <span style={{ color: '#856404', fontSize: '12px' }}>
+              ⚠️ Viewing historical run
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Stats Bar */}
       {metadata && (

@@ -140,8 +140,11 @@ type McallWorkflowStatus struct {
 	// LastRunTime is the time when the workflow was last executed
 	LastRunTime *metav1.Time `json:"lastRunTime,omitempty"`
 
-	// DAG representation for UI visualization
+	// DAG representation for UI visualization (current/last run)
 	DAG *WorkflowDAG `json:"dag,omitempty"`
+
+	// DAGHistory contains recent workflow run history (up to 5 runs)
+	DAGHistory []WorkflowDAG `json:"dagHistory,omitempty"`
 }
 
 // TaskStatus represents the status of a single task in the workflow
@@ -195,6 +198,15 @@ func init() {
 
 // WorkflowDAG represents the DAG structure of a workflow for UI visualization
 type WorkflowDAG struct {
+	// RunID is the unique identifier for this workflow run
+	RunID string `json:"runID"`
+
+	// Timestamp is when this DAG was generated
+	Timestamp *metav1.Time `json:"timestamp"`
+
+	// WorkflowPhase is the workflow phase at generation time
+	WorkflowPhase McallWorkflowPhase `json:"workflowPhase,omitempty"`
+
 	// Nodes is the list of task nodes in the DAG
 	Nodes []DAGNode `json:"nodes"`
 
