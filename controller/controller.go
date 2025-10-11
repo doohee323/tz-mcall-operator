@@ -1555,6 +1555,8 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 		// Apply changes to latest version
 		latest.Status.Phase = task.Status.Phase
 		latest.Status.CompletionTime = task.Status.CompletionTime
+		latest.Status.ExecutionTimeMs = task.Status.ExecutionTimeMs
+		latest.Status.HTTPStatusCode = task.Status.HTTPStatusCode
 		latest.Status.Result = &mcallv1.McallTaskResult{
 			Output:       output,
 			ErrorCode:    errCode,
