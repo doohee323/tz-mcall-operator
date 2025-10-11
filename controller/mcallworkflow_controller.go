@@ -210,10 +210,11 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			}
 
 			// Reset workflow status for next scheduled run
+			// Keep DAG from last run (don't clear it)
 			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
 			latest.Status.StartTime = nil
 			latest.Status.CompletionTime = nil
-			latest.Status.DAG = nil // Clear current DAG
+			// latest.Status.DAG = nil // Don't clear DAG - keep last run data for UI
 
 			return r.Status().Update(ctx, latest)
 		})
