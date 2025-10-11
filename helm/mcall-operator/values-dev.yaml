@@ -18,10 +18,13 @@ mcpServer:
   enabled: true
   replicas: 1
   
+  # Image tag is set by Jenkins via --set mcpServer.image.tag="${BUILD_NUMBER}"
+  # Do not hardcode tag here
+  
   auth:
-    enabled: false  # Disable auth for local development
-    existingSecret: ""
-    apiKeys: ""  # No keys needed when auth is disabled
+    enabled: true  # Enable auth for development
+    existingSecret: "mcp-api-keys"
+    apiKeys: ""  # Use existing secret
   
   ingress:
     enabled: true
