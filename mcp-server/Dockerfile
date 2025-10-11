@@ -14,6 +14,10 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Build UI
+WORKDIR /app/ui
+RUN npm ci && npm run build
+
 # Production image
 FROM node:20-alpine
 
@@ -27,6 +31,7 @@ RUN npm ci --production
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/ui/dist ./ui/dist
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
