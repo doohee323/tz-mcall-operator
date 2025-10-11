@@ -209,3 +209,4 @@ kubectl get mcalltask -n mcall-dev -l test=result-passing
 - [TASK_RESULT_PASSING_DESIGN.md](./docs/TASK_RESULT_PASSING_DESIGN.md) - 설계 문서
 
 
+

@@ -124,6 +124,32 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
   }
 });
 
+// GET /api/tasks/:namespace - List tasks in specific namespace
+router.get('/tasks/:namespace', async (req, res) => {
+  try {
+    const { namespace } = req.params;
+    const response = await k8sClient.listTasks(namespace);
+    const tasks = response.items || [];
+    
+    // Extract just the task names
+    const taskNames = tasks.map((task: any) => task.metadata?.name).filter(Boolean);
+    
+    console.log('[DAG-API] 📋 List tasks in namespace:', namespace, '- found:', taskNames.length);
+    
+    res.json({
+      success: true,
+      tasks: taskNames,
+      count: taskNames.length
+    });
+  } catch (error) {
+    console.error('Error listing tasks in namespace:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 // GET /api/tasks/:namespace/:name - Get task details
 router.get('/tasks/:namespace/:name', async (req, res) => {
   try {

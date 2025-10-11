@@ -454,7 +454,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   }, [nodes.length]);
 
   return (
-    <div style={{ width: '100%', height: '90vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ 
         padding: '15px 20px', 
@@ -635,7 +635,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
       )}
 
       {/* DAG Canvas */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, width: '100%' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
