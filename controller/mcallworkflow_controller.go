@@ -151,7 +151,7 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 			return err
 		}
 
-		log.Info("✅ Got latest workflow version", "workflow", workflow.Name, "currentDAG", latest.Status.DAG != nil, "currentHistoryCount", len(latest.Status.DAGHistory))
+		log.Info("✅ Got latest workflow version", "workflow", workflow.Name, "currentDAG", latest.Status.DAG != nil)
 
 		// Update the DAG on the latest version
 		latest.Status.DAG = workflow.Status.DAG

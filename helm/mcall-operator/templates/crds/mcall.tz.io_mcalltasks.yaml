@@ -261,6 +261,9 @@ spec:
                   diff)
                 format: int64
                 type: integer
+              httpStatusCode:
+                description: HTTP status code (for HTTP requests)
+                type: integer
               lastRetryTime:
                 description: Last retry attempt time
                 format: date-time

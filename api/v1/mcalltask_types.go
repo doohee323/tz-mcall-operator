@@ -91,6 +91,9 @@ type McallTaskStatus struct {
 	// Execution time in milliseconds (more precise than StartTime/CompletionTime diff)
 	ExecutionTimeMs int64 `json:"executionTimeMs,omitempty"`
 
+	// HTTP status code (for HTTP requests)
+	HTTPStatusCode int `json:"httpStatusCode,omitempty"`
+
 	// Task execution result
 	Result *McallTaskResult `json:"result,omitempty"`
 
