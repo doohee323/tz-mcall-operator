@@ -100,7 +100,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [currentWorkflowName, setCurrentWorkflowName] = useState(workflowName);
   const [availableWorkflows, setAvailableWorkflows] = useState<string[]>([]);
   const [availableNamespaces, setAvailableNamespaces] = useState<string[]>([]);
-  const [isStaleDAG, setIsStaleDAG] = useState(false); // Track if showing stale data
+  const [_isStaleDAG, setIsStaleDAG] = useState(false); // Track if showing stale data
   
   // Task detail popup state
   const [selectedTask, setSelectedTask] = useState<any>(null);
