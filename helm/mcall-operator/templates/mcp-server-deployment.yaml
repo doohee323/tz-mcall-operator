@@ -37,6 +37,15 @@ spec:
         - name: {{ $key }}
           value: {{ $value | quote }}
         {{- end }}
+        - name: MCP_REQUIRE_AUTH
+          value: {{ .Values.mcpServer.auth.enabled | quote }}
+        {{- if .Values.mcpServer.auth.enabled }}
+        - name: MCP_API_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: mcp-api-keys
+              key: api-keys
+        {{- end }}
         {{- with .Values.mcpServer.resources }}
         resources:
           {{- toYaml . | nindent 10 }}

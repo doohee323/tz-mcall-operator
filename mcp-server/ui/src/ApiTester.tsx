@@ -442,14 +442,15 @@ export function ApiTester() {
 
           {/* Response */}
           {response && (
-            <div>
-              <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Response</h3>
+            <div style={{ textAlign: 'left' }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', textAlign: 'left' }}>Response</h3>
               <div style={{
                 padding: '10px 15px',
                 background: response.status >= 200 && response.status < 300 ? '#e8f5e9' : '#ffebee',
                 border: `1px solid ${response.status >= 200 && response.status < 300 ? '#81c784' : '#ef9a9a'}`,
                 borderRadius: '4px',
-                marginBottom: '15px'
+                marginBottom: '15px',
+                textAlign: 'left'
               }}>
                 <strong>Status:</strong> {response.status} {response.statusText}
               </div>
@@ -459,7 +460,8 @@ export function ApiTester() {
                 borderRadius: '4px',
                 padding: '15px',
                 overflow: 'auto',
-                maxHeight: '500px'
+                maxHeight: '500px',
+                textAlign: 'left'
               }}>
                 <pre style={{
                   margin: 0,

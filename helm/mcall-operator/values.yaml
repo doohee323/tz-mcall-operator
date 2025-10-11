@@ -284,6 +284,13 @@ mcpServer:
   # Number of replicas
   replicas: 2
   
+  # API Key authentication
+  auth:
+    enabled: false
+    # API Keys (comma-separated)
+    # Production: Store in Kubernetes Secret
+    apiKeys: "dev-key-12345,staging-key-67890"
+  
   # Service configuration
   service:
     type: ClusterIP
@@ -327,6 +334,7 @@ mcpServer:
   env:
     NODE_ENV: production
     DEFAULT_NAMESPACE: mcall-system
+    SERVER_MODE: http
   
   # Security context
   securityContext:

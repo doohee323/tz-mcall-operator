@@ -22,6 +22,7 @@ import {
 } from "./tools.js";
 import dagApiRouter from "./dag-api.js";
 import { setupWebSocket } from "./dag-websocket.js";
+import { AuthService } from "./auth.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -33,22 +34,25 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
 
-// Serve static files from UI build (if exists)
+// Initialize authentication service
+const authService = new AuthService();
+
+// Serve static files from UI build (if exists) - no auth required
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 app.use(express.static(join(__dirname, '../ui/dist')));
 
-// DAG API routes
-app.use('/api', dagApiRouter);
+// DAG API routes - auth required
+app.use('/api', authService.authenticate(), dagApiRouter);
 
 // Setup WebSocket
 setupWebSocket(httpServer);
@@ -69,10 +73,12 @@ app.get("/", (req, res) => {
     name: "McallOperator MCP Server",
     version: "1.0.0",
     description: "Model Context Protocol server for tz-mcall-operator",
+    authRequired: process.env.MCP_REQUIRE_AUTH === 'true',
     endpoints: {
       health: "/health",
       ready: "/ready",
-      mcp: "/mcp",
+      mcp: "/mcp (requires API key if auth enabled)",
+      api: "/api/* (requires API key if auth enabled)"
     },
     tools: TOOLS.map((tool) => ({
       name: tool.name,
@@ -81,8 +87,8 @@ app.get("/", (req, res) => {
   });
 });
 
-// MCP endpoint using SSE
-app.get("/mcp", async (req, res) => {
+// MCP endpoint using SSE - auth required
+app.get("/mcp", authService.authenticate(), async (req, res) => {
   console.log("New MCP client connected");
 
   const k8sClient = new KubernetesClient();
@@ -109,7 +115,7 @@ app.get("/mcp", async (req, res) => {
   });
 });
 
-app.post("/mcp", async (req, res) => {
+app.post("/mcp", authService.authenticate(), async (req, res) => {
   console.log("MCP POST message received");
   
   try {
