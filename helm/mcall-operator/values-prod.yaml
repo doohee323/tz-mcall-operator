@@ -1,0 +1,51 @@
+# Production environment values
+# This file can be committed to Git safely
+# Sensitive data (API Keys) should be in Kubernetes Secret
+
+environment:
+  name: "prod"
+  suffix: ""
+
+namespace:
+  name: "mcall-system"
+  create: true
+
+controller:
+  replicas: 2
+  reconcileInterval: 5
+  taskTimeout: 5
+
+mcpServer:
+  enabled: true
+  replicas: 2
+  
+  auth:
+    enabled: true  # ALWAYS enable auth in production
+    existingSecret: "mcp-api-keys"  # Use pre-created Secret
+    apiKeys: ""  # DO NOT set keys here
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    hosts:
+      - host: mcp.drillquiz.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: mcp-server-prod-tls
+        hosts:
+          - mcp.drillquiz.com
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+

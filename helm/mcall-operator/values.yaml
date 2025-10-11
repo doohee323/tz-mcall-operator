@@ -287,9 +287,15 @@ mcpServer:
   # API Key authentication
   auth:
     enabled: false
-    # API Keys (comma-separated)
-    # Production: Store in Kubernetes Secret
-    apiKeys: "dev-key-12345,staging-key-67890"
+    
+    # Option 1: Use existing Secret (recommended for production)
+    # Create Secret manually: kubectl create secret generic mcp-api-keys --from-literal=api-keys="key1,key2" -n mcall-system
+    existingSecret: ""  # Set to "mcp-api-keys" to use existing secret
+    
+    # Option 2: Let Helm manage the Secret (for development only)
+    # WARNING: Do not commit sensitive keys to Git!
+    # For production, use --set or separate values file
+    apiKeys: ""  # e.g., "dev-key-12345,staging-key-67890"
   
   # Service configuration
   service:

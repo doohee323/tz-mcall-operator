@@ -22,3 +22,14 @@ email_test.py
 
 # Personal config
 docs/claude_desktop_config.json
+
+# Helm local values (contains sensitive data)
+helm/*/values-*-local.yaml
+
+# MCP Server build output
+mcp-server/dist/
+mcp-server/node_modules/
+mcp-server/ui/dist/
+mcp-server/ui/node_modules/
+mcp-server/.env.local
+mcp-server/ui/.env.local

@@ -43,7 +43,7 @@ spec:
         - name: MCP_API_KEYS
           valueFrom:
             secretKeyRef:
-              name: mcp-api-keys
+              name: {{ .Values.mcpServer.auth.existingSecret | default "mcp-api-keys" }}
               key: api-keys
         {{- end }}
         {{- with .Values.mcpServer.resources }}

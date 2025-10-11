@@ -92,32 +92,87 @@ MCP_REQUIRE_AUTH=true MCP_API_KEYS=test-key-123,admin-key-456 npm start
 
 ## Kubernetes 배포
 
-### 1. Helm Values 설정
+### Option 1: Production (권장) - Existing Secret 사용
 
-```yaml
-# values-dev.yaml
-mcpServer:
-  enabled: true
-  auth:
-    enabled: true
-    apiKeys: "dev-key-12345,staging-key-67890"
-```
-
-### 2. Secret 생성 (Production)
+**Step 1: Secret 생성 (Helm 배포 전)**
 
 ```bash
-# API Keys를 Kubernetes Secret으로 생성
+# API Keys를 Kubernetes Secret으로 먼저 생성
 kubectl create secret generic mcp-api-keys \
   --from-literal=api-keys="prod-key-abc123,admin-key-xyz789" \
   -n mcall-system
+```
 
+**Step 2: Helm 배포**
+
+```yaml
+# values-prod.yaml
+mcpServer:
+  auth:
+    enabled: true
+    existingSecret: "mcp-api-keys"  # 기존 Secret 사용
+    apiKeys: ""  # 비워둠 (보안)
+```
+
+```bash
 # Helm 배포
 helm upgrade --install mcall-operator ./helm/mcall-operator \
-  -f helm/mcall-operator/values.yaml \
+  -f helm/mcall-operator/values-prod.yaml \
   --namespace mcall-system
 ```
 
-### 3. 배포 확인
+### Option 2: Development - Helm이 Secret 관리
+
+**개발 환경에서만 사용 (Git에 커밋 금지!)**
+
+```bash
+# 명령줄에서 API Key 전달
+helm upgrade --install mcall-operator ./helm/mcall-operator \
+  -f helm/mcall-operator/values-dev.yaml \
+  --set mcpServer.auth.enabled=true \
+  --set mcpServer.auth.apiKeys="dev-key-12345,test-key-67890" \
+  --namespace mcall-dev
+```
+
+또는 별도 파일:
+
+```yaml
+# values-dev-local.yaml (Git ignore 필요!)
+mcpServer:
+  auth:
+    enabled: true
+    apiKeys: "dev-key-12345,test-key-67890"
+```
+
+```bash
+helm upgrade --install mcall-operator ./helm/mcall-operator \
+  -f helm/mcall-operator/values-dev.yaml \
+  -f helm/mcall-operator/values-dev-local.yaml \
+  --namespace mcall-dev
+```
+
+### Option 3: API Key 교체 (Zero Downtime)
+
+```bash
+# 1. 새로운 키 추가 (기존 키 유지)
+kubectl create secret generic mcp-api-keys \
+  --from-literal=api-keys="old-key,new-key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 2. Pod 재시작 (새 Secret 로드)
+kubectl rollout restart deployment/mcall-operator-mcp-server -n mcall-system
+
+# 3. 클라이언트를 new-key로 전환
+
+# 4. old-key 제거
+kubectl create secret generic mcp-api-keys \
+  --from-literal=api-keys="new-key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl rollout restart deployment/mcall-operator-mcp-server -n mcall-system
+```
+
+### 배포 확인
 
 ```bash
 # MCP Server Pod 확인
