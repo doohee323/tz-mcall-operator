@@ -192,22 +192,13 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			log.Error(err, "Failed to build final DAG before cleanup", "workflow", workflow.Name)
 		}
 
-		// Store current DAG before reset
-		var currentDAG *mcallv1.WorkflowDAG
-		if workflow.Status.DAG != nil {
-			currentDAG = workflow.Status.DAG
-			log.Info("Storing current DAG for history",
-				"workflow", workflow.Name,
-				"runID", workflow.Status.DAG.RunID)
-		}
-
 		// Delete workflow-specific task instances (not template tasks)
 		if err := r.deleteWorkflowTasks(ctx, workflow); err != nil {
 			log.Error(err, "Failed to delete workflow tasks", "workflow", workflow.Name)
 			return ctrl.Result{}, err
 		}
 
-		// Update status with retry on conflict
+		// Update status with retry on conflict - reset for next run
 		resetErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			// Get the latest version
 			latest := &mcallv1.McallWorkflow{}
@@ -218,39 +209,11 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 				return err
 			}
 
-			// Build history from latest version + current DAG
-			var newHistory []mcallv1.WorkflowDAG
-			if currentDAG != nil {
-				// Start with existing history from latest version
-				existingHistory := latest.Status.DAGHistory
-				if existingHistory == nil {
-					existingHistory = []mcallv1.WorkflowDAG{}
-				}
-
-				// Prepend current DAG to history
-				newHistory = append([]mcallv1.WorkflowDAG{*currentDAG}, existingHistory...)
-
-				// Keep only last 5 runs
-				if len(newHistory) > 5 {
-					newHistory = newHistory[:5]
-				}
-
-				log.Info("Updated DAG history",
-					"workflow", workflow.Name,
-					"runID", currentDAG.RunID,
-					"existingHistoryCount", len(existingHistory),
-					"newHistoryCount", len(newHistory))
-			} else {
-				// No current DAG, keep existing history
-				newHistory = latest.Status.DAGHistory
-			}
-
-			// Apply changes to latest version
+			// Reset workflow status for next scheduled run
 			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
 			latest.Status.StartTime = nil
 			latest.Status.CompletionTime = nil
-			latest.Status.DAG = nil         // Clear current DAG
-			latest.Status.DAGHistory = newHistory // Preserve history
+			latest.Status.DAG = nil // Clear current DAG
 
 			return r.Status().Update(ctx, latest)
 		})
@@ -260,7 +223,7 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
-		log.Info("Workflow reset to Pending for next scheduled run (DAG history preserved)",
+		log.Info("Workflow reset to Pending for next scheduled run",
 			"workflow", workflow.Name)
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
@@ -659,8 +622,10 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 			node.Type = task.Spec.Type // Override with actual task type
 			node.Input = truncateForUI(task.Spec.Input, 200)
 
-			// Calculate duration
-			if task.Status.StartTime != nil {
+			// Calculate duration - use ExecutionTimeMs if available for better precision
+			if task.Status.ExecutionTimeMs > 0 {
+				node.Duration = formatDurationMs(task.Status.ExecutionTimeMs)
+			} else if task.Status.StartTime != nil {
 				if task.Status.CompletionTime != nil {
 					duration := task.Status.CompletionTime.Sub(task.Status.StartTime.Time)
 					node.Duration = formatDuration(duration)
@@ -675,6 +640,11 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 				node.Output = truncateForUI(task.Status.Result.Output, 500)
 				node.ErrorCode = task.Status.Result.ErrorCode
 				node.ErrorMessage = task.Status.Result.ErrorMessage
+			}
+
+			// HTTP status code (for HTTP requests)
+			if task.Status.HTTPStatusCode != 0 {
+				node.HTTPStatusCode = task.Status.HTTPStatusCode
 			}
 
 			// Update metadata counts
@@ -826,4 +796,20 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%.1fm", d.Minutes())
 	}
 	return fmt.Sprintf("%.1fh", d.Hours())
+}
+
+func formatDurationMs(ms int64) string {
+	if ms < 1000 {
+		return fmt.Sprintf("%dms", ms)
+	}
+	seconds := float64(ms) / 1000.0
+	if seconds < 60 {
+		return fmt.Sprintf("%.1fs", seconds)
+	}
+	minutes := seconds / 60.0
+	if minutes < 60 {
+		return fmt.Sprintf("%.1fm", minutes)
+	}
+	hours := minutes / 60.0
+	return fmt.Sprintf("%.1fh", hours)
 }

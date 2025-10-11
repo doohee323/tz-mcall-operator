@@ -88,6 +88,9 @@ type McallTaskStatus struct {
 	// When the task completed
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
 
+	// Execution time in milliseconds (more precise than StartTime/CompletionTime diff)
+	ExecutionTimeMs int64 `json:"executionTimeMs,omitempty"`
+
 	// Task execution result
 	Result *McallTaskResult `json:"result,omitempty"`
 

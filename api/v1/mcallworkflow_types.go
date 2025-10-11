@@ -142,9 +142,6 @@ type McallWorkflowStatus struct {
 
 	// DAG representation for UI visualization (current/last run)
 	DAG *WorkflowDAG `json:"dag,omitempty"`
-
-	// DAGHistory contains recent workflow run history (up to 5 runs)
-	DAGHistory []WorkflowDAG `json:"dagHistory,omitempty"`
 }
 
 // TaskStatus represents the status of a single task in the workflow
@@ -254,6 +251,9 @@ type DAGNode struct {
 
 	// ErrorMessage is the error message if failed
 	ErrorMessage string `json:"errorMessage,omitempty"`
+
+	// HTTPStatusCode is the HTTP response status code (for HTTP requests)
+	HTTPStatusCode int `json:"httpStatusCode,omitempty"`
 
 	// Position for UI layout
 	Position *NodePosition `json:"position,omitempty"`

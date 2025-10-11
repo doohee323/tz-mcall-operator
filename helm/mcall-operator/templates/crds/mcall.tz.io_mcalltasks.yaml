@@ -256,6 +256,11 @@ spec:
                 description: When the task completed
                 format: date-time
                 type: string
+              executionTimeMs:
+                description: Execution time in milliseconds (more precise than StartTime/CompletionTime
+                  diff)
+                format: int64
+                type: integer
               lastRetryTime:
                 description: Last retry attempt time
                 format: date-time

@@ -1523,7 +1523,15 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 		task.Status.Phase = mcallv1.McallTaskPhaseSucceeded
 	}
 
-	task.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+	completionTime := time.Now()
+	task.Status.CompletionTime = &metav1.Time{Time: completionTime}
+
+	// Calculate execution time in milliseconds
+	if task.Status.StartTime != nil {
+		executionDuration := completionTime.Sub(task.Status.StartTime.Time)
+		task.Status.ExecutionTimeMs = executionDuration.Milliseconds()
+	}
+
 	task.Status.Result = &mcallv1.McallTaskResult{
 		Output:       output,
 		ErrorCode:    errCode,

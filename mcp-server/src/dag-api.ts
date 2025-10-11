@@ -24,6 +24,32 @@ router.get('/workflows', async (req, res) => {
   }
 });
 
+// GET /api/workflows/:namespace - List workflows in specific namespace
+router.get('/workflows/:namespace', async (req, res) => {
+  try {
+    const { namespace } = req.params;
+    const response = await k8sClient.listWorkflows(namespace);
+    const workflows = response.items || [];
+    
+    // Extract just the workflow names
+    const workflowNames = workflows.map((wf: any) => wf.metadata?.name).filter(Boolean);
+    
+    console.log('[DAG-API] 📋 List workflows in namespace:', namespace, '- found:', workflowNames.length);
+    
+    res.json({
+      success: true,
+      workflows: workflowNames,
+      count: workflowNames.length
+    });
+  } catch (error) {
+    console.error('Error listing workflows in namespace:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 // GET /api/workflows/:namespace/:name - Get workflow details
 router.get('/workflows/:namespace/:name', async (req, res) => {
   try {
@@ -52,7 +78,6 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     // Log raw workflow status for debugging
     console.log('[DAG-API] 📊 Raw workflow.status:', JSON.stringify(workflow.status, null, 2));
     console.log('[DAG-API] 🔗 workflow.status.dag:', JSON.stringify(workflow.status?.dag, null, 2));
-    console.log('[DAG-API] 📜 workflow.status.dagHistory length:', workflow.status?.dagHistory?.length || 0);
     
     // Extract DAG from workflow status
     const dag = workflow.status?.dag || {
@@ -72,7 +97,7 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     
     console.log('[DAG-API] ✅ Extracted DAG nodes:', dag.nodes?.length || 0, 'edges:', dag.edges?.length || 0);
     
-    // Build response with workflow info, DAG, and history
+    // Build response with workflow info and DAG
     const response = {
       success: true,
       workflow: {
@@ -84,8 +109,7 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
         schedule: workflow.spec?.schedule,
         lastRunTime: workflow.status?.lastRunTime
       },
-      dag: dag,
-      dagHistory: workflow.status?.dagHistory || []
+      dag: dag
     };
     
     console.log('[DAG-API] 🚀 Sending response - nodes:', response.dag.nodes?.length, 'edges:', response.dag.edges?.length);
@@ -128,12 +152,10 @@ router.get('/namespaces', async (req, res) => {
     
     for (const namespace of allNamespaces) {
       try {
-        const workflows = await k8sClient.listWorkflows(namespace);
+        const response = await k8sClient.listWorkflows(namespace);
+        const workflows = response.items || [];
         if (workflows.length > 0) {
-          availableNamespaces.push({
-            namespace,
-            workflowCount: workflows.length
-          });
+          availableNamespaces.push(namespace);
         }
       } catch {
         // Namespace might not exist or no access
@@ -141,9 +163,11 @@ router.get('/namespaces', async (req, res) => {
       }
     }
     
+    console.log('[DAG-API] 🗂️ Available namespaces:', availableNamespaces);
+    
     res.json({
       success: true,
-      data: availableNamespaces
+      namespaces: availableNamespaces
     });
   } catch (error) {
     console.error('Error listing namespaces:', error);
