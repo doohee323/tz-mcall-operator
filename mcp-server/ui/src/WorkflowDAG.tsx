@@ -295,36 +295,44 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
       <div style={{ 
         padding: '20px', 
         background: '#1976d2', 
-        color: '#fff',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        color: '#fff'
       }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '24px' }}>
-            🔄 {workflow?.name || workflowName}
-          </h1>
-          <div style={{ fontSize: '14px', marginTop: '5px', opacity: 0.9 }}>
-            Namespace: {workflow?.namespace || namespace} | 
-            Phase: {workflow?.phase || 'Loading...'} |
-            {workflow?.schedule && ` Schedule: ${workflow.schedule} |`}
-            {isConnected ? ' 🟢 Auto-refresh (5s)' : ' 🔴 Stopped'}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '15px'
+        }}>
+          <div style={{ flex: '1', minWidth: '300px' }}>
+            <h1 style={{ margin: 0, fontSize: '24px' }}>
+              🔄 {workflow?.name || workflowName}
+            </h1>
+            <div style={{ fontSize: '14px', marginTop: '5px', opacity: 0.9, lineHeight: '1.4' }}>
+              Namespace: {workflow?.namespace || namespace} | 
+              Phase: {workflow?.phase || 'Loading...'} |
+              {workflow?.schedule && ` Schedule: ${workflow.schedule} |`}
+              {isConnected ? ' 🟢 Auto-refresh (10s)' : ' 🔴 Stopped'}
+            </div>
+          </div>
+          <div style={{ flexShrink: 0 }}>
+            <button 
+              onClick={fetchDAG}
+              style={{
+                padding: '8px 16px',
+                background: '#fff',
+                color: '#1976d2',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              ↻ Refresh
+            </button>
           </div>
         </div>
-        <button 
-          onClick={fetchDAG}
-          style={{
-            padding: '8px 16px',
-            background: '#fff',
-            color: '#1976d2',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: 'bold'
-          }}
-        >
-          ↻ Refresh
-        </button>
       </div>
 
       {/* Stale DAG Warning */}
