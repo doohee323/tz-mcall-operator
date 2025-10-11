@@ -496,9 +496,9 @@ func executeCommand(command string, timeout time.Duration) (string, error) {
 }
 
 // executeHTTPRequest executes HTTP GET/POST request
-func executeHTTPRequest(url, method string, timeout time.Duration) (string, error) {
+func executeHTTPRequest(url, method string, timeout time.Duration) (string, int, error) {
 	if url == "" {
-		return "", fmt.Errorf("empty URL")
+		return "", 0, fmt.Errorf("empty URL")
 	}
 
 	var req *http.Request
@@ -509,13 +509,13 @@ func executeHTTPRequest(url, method string, timeout time.Duration) (string, erro
 		// This is a simplified implementation - you might want to enhance it
 		req, err = http.NewRequest("POST", url, nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to create POST request: %w", err)
+			return "", 0, fmt.Errorf("failed to create POST request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 	} else {
 		req, err = http.NewRequest("GET", url, nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to create GET request: %w", err)
+			return "", 0, fmt.Errorf("failed to create GET request: %w", err)
 		}
 	}
 
@@ -528,22 +528,22 @@ func executeHTTPRequest(url, method string, timeout time.Duration) (string, erro
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute %s request: %w", method, err)
+		return "", 0, fmt.Errorf("failed to execute %s request: %w", method, err)
 	}
 	defer resp.Body.Close()
 
 	doc, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+		return "", resp.StatusCode, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check HTTP status code - fail if not 2xx
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return string(doc), fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+		return string(doc), resp.StatusCode, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	// Return only body content (like mcall.go fetchHtml)
-	return string(doc), nil
+	// Return body content and status code
+	return string(doc), resp.StatusCode, nil
 }
 
 // getHTTPStatusCode gets the HTTP status code for expect validation (like mcall.go)
@@ -620,20 +620,19 @@ func (tw *TaskWorker) Execute(timeout time.Duration) {
 
 	// Execute based on type (like original mcall.go)
 	var statusCode string
+	var httpStatusCode int
 	switch tw.inputType {
 	case "cmd":
 		content, err = executeCommand(tw.input, timeout)
 	case "get":
-		content, err = executeHTTPRequest(tw.input, "GET", timeout)
-		if err == nil {
-			// For HTTP requests, we need to get status code for expect validation
-			statusCode = getHTTPStatusCode(tw.input, "GET", timeout)
+		content, httpStatusCode, err = executeHTTPRequest(tw.input, "GET", timeout)
+		if httpStatusCode > 0 {
+			statusCode = fmt.Sprintf("%d", httpStatusCode)
 		}
 	case "post":
-		content, err = executeHTTPRequest(tw.input, "POST", timeout)
-		if err == nil {
-			// For HTTP requests, we need to get status code for expect validation
-			statusCode = getHTTPStatusCode(tw.input, "POST", timeout)
+		content, httpStatusCode, err = executeHTTPRequest(tw.input, "POST", timeout)
+		if httpStatusCode > 0 {
+			statusCode = fmt.Sprintf("%d", httpStatusCode)
 		}
 	default:
 		content, err = executeCommand(tw.input, timeout)
@@ -1465,10 +1464,14 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 		}
 
 	case "get":
-		output, execErr = executeHTTPRequest(task.Spec.Input, "GET", taskTimeout)
+		var httpStatus int
+		output, httpStatus, execErr = executeHTTPRequest(task.Spec.Input, "GET", taskTimeout)
+		task.Status.HTTPStatusCode = httpStatus
 
 	case "post":
-		output, execErr = executeHTTPRequest(task.Spec.Input, "POST", taskTimeout)
+		var httpStatus int
+		output, httpStatus, execErr = executeHTTPRequest(task.Spec.Input, "POST", taskTimeout)
+		task.Status.HTTPStatusCode = httpStatus
 
 	default:
 		// Default to cmd execution

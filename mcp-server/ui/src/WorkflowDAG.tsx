@@ -431,18 +431,18 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
 
     fetchDAGInternal(); // Initial fetch
 
-    // Auto-refresh every 60 seconds (workflow runs every 2 minutes)
+    // Auto-refresh every 5 seconds (workflow runs every 1 minute)
     const interval = setInterval(() => {
       console.log('[DAG] 🔄 Auto-refresh triggered');
       fetchDAGInternal();
-    }, 60000);
+    }, 5000);
 
     return () => {
       console.log('[DAG] 🛑 Stopping auto-refresh');
       clearInterval(interval);
       setIsConnected(false);
     };
-  }, [currentNamespace, currentWorkflowName, selectedRunID, cacheKey, lastValidDAG, handleTaskDetailClick, loadHistoryFromStorage, saveToHistory]);
+  }, [currentNamespace, currentWorkflowName, selectedRunID]);
 
   // 노드가 업데이트될 때 줌 설정
   useEffect(() => {
@@ -540,7 +540,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
             }}>
               Phase: {workflow?.phase || 'Loading...'} |
               {workflow?.schedule && ` Schedule: ${workflow.schedule} |`}
-              {isConnected ? ' 🟢 Auto-refresh (60s)' : ' 🔴 Stopped'}
+              {isConnected ? ' 🟢 Auto-refresh (5s)' : ' 🔴 Stopped'}
             </div>
           </div>
           <div style={{ 

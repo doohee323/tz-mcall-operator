@@ -51,7 +51,7 @@ metadata:
   name: health-monitor
   namespace: mcall-dev
 spec:
-  schedule: '*/2 * * * *'  # Every 2 minutes
+  schedule: '*/1 * * * *'  # Every 1 minute
   tasks:
   
   # Task 1: Health Check us.drillquiz.com
