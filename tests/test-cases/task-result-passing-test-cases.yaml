@@ -1,0 +1,187 @@
+# Task Result Passing Integration Test Cases
+#
+# These test cases validate:
+# 1. Task-to-task result passing via InputSources
+# 2. Conditional execution based on task results
+# 3. InputTemplate variable substitution
+# 4. JSONPath extraction from JSON outputs
+
+---
+# Test Case 1: Simple Result Passing
+# Tests basic result passing from one task to another
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-source-task
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'SUCCESS'"
+  timeout: 10
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-consumer-task
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "will be overridden"
+  timeout: 10
+  dependencies:
+    - test-source-task
+  inputSources:
+    - name: SOURCE_OUTPUT
+      taskRef: test-source-task
+      field: output
+    - name: SOURCE_PHASE
+      taskRef: test-source-task
+      field: phase
+  inputTemplate: |
+    echo "Previous task output: ${SOURCE_OUTPUT}"
+    echo "Previous task phase: ${SOURCE_PHASE}"
+
+---
+# Test Case 2: Conditional Execution - Success Path
+# Tests that a task runs only when dependent task succeeds
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: test-conditional-success
+  namespace: mcall-dev
+spec:
+  tasks:
+  - name: check-task
+    taskRef:
+      name: test-source-task
+      namespace: mcall-dev
+  
+  - name: on-success-task
+    taskRef:
+      name: test-consumer-task
+      namespace: mcall-dev
+    dependencies:
+      - check-task
+    condition:
+      dependentTask: check-task
+      when: success
+    inputSources:
+      - name: CHECK_PHASE
+        taskRef: check-task
+        field: phase
+    inputTemplate: "echo 'Check succeeded: ${CHECK_PHASE}'"
+
+---
+# Test Case 3: JSONPath Extraction
+# Tests extracting specific fields from JSON output
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-json-producer
+  namespace: mcall-dev
+spec:
+  type: get
+  input: https://httpbin.org/json
+  timeout: 30
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-json-consumer
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'default'"
+  timeout: 10
+  dependencies:
+    - test-json-producer
+  inputSources:
+    - name: SLIDE_TITLE
+      taskRef: test-json-producer
+      field: output
+      jsonPath: $.slideshow.title
+      default: "No title found"
+  inputTemplate: "echo 'Slideshow title: ${SLIDE_TITLE}'"
+
+---
+# Test Case 4: Multiple InputSources
+# Tests combining data from multiple previous tasks
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-task-a
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Task A result'"
+  timeout: 10
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-task-b
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Task B result'"
+  timeout: 10
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: test-task-combiner
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'default'"
+  timeout: 10
+  dependencies:
+    - test-task-a
+    - test-task-b
+  inputSources:
+    - name: OUTPUT_A
+      taskRef: test-task-a
+      field: output
+    - name: OUTPUT_B
+      taskRef: test-task-b
+      field: output
+  inputTemplate: |
+    echo "Task A: ${OUTPUT_A}"
+    echo "Task B: ${OUTPUT_B}"
+
+---
+# Test Case 5: Conditional with FieldEquals
+# Tests field-based conditional execution
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: test-field-condition
+  namespace: mcall-dev
+spec:
+  tasks:
+  - name: status-check
+    taskRef:
+      name: test-source-task
+      namespace: mcall-dev
+  
+  - name: on-zero-error
+    taskRef:
+      name: test-consumer-task
+      namespace: mcall-dev
+    dependencies:
+      - status-check
+    condition:
+      dependentTask: status-check
+      when: completed
+      fieldEquals:
+        field: errorCode
+        value: "0"
+    inputTemplate: "echo 'Error code is zero, proceeding...'"
+
+
+
+

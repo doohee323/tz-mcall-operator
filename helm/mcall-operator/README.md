@@ -1,132 +1,207 @@
 # mcall-operator Helm Chart
 
-A Helm chart for deploying the mcall CRD-based task execution system on Kubernetes.
+Official Helm chart for deploying the tz-mcall-operator and MCP server on Kubernetes.
 
 ## Prerequisites
 
 - Kubernetes 1.19+
 - Helm 3.x
-- cert-manager (for webhook certificates)
+- kubectl configured with cluster access
 
-## Installation
+## Quick Start
 
-### Add the Helm repository
-
-```bash
-helm repo add mcall https://charts.example.com/mcall
-helm repo update
-```
-
-### Install the chart
+### Installation
 
 ```bash
-# Install with default values
-helm install mcall-operator mcall/mcall-operator
-
-# Install with custom values
-helm install mcall-operator mcall/mcall-operator \
-  --namespace mcall-system \
-  --create-namespace \
-  --values values.yaml
-
-# Install for development
-helm install mcall-operator-dev mcall/mcall-operator \
-  --namespace mcall-dev \
-  --create-namespace \
-  --values values-dev.yaml
-
-# Install with environment variables (recommended)
-export POSTGRES_PASSWORD=""
-./install-with-env.sh
-```
-
-## Security Configuration
-
-### Secret Management
-
-Sensitive information such as database passwords are managed through Kubernetes Secrets. The chart automatically creates secrets for logging backends.
-
-#### Setting up secrets
-
-**Using environment variables**
-```bash
-# Set environment variables
-export POSTGRES_PASSWORD=""
-export MYSQL_PASSWORD="your-mysql-password"
-export ELASTICSEARCH_PASSWORD="your-elasticsearch-password"
-
-# Run installation script
-./install-with-env.sh
-```
-
-**Or use Helm command directly:**
-```bash
-helm install mcall-operator mcall/mcall-operator \
-  --namespace mcall-system \
-  --create-namespace \
-  --values values.yaml \
-  --set logging.postgresql.password="$POSTGRES_PASSWORD" \
-  --set logging.mysql.password="$MYSQL_PASSWORD" \
-  --set logging.elasticsearch.password="$ELASTICSEARCH_PASSWORD"
-```
-
-#### Secret Structure
-
-The chart creates the following secrets:
-- `{release-name}-logging-secret`: Contains encrypted passwords for all logging backends
-
-#### ConfigMap vs Secret
-
-- **ConfigMap**: Non-sensitive configuration (hosts, ports, database names, etc.)
-- **Secret**: Sensitive data (passwords, API keys, certificates)
-
-## Configuration
-
-The following table lists the configurable parameters and their default values.
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `image.repository` | Image repository | `""` |
-| `image.tag` | Image tag | `1.0.0` |
-| `image.pullPolicy` | Image pull policy | `IfNotPresent` |
-| `controller.replicas` | Number of replicas | `2` |
-| `controller.resources.limits.cpu` | CPU limit | `200m` |
-| `controller.resources.limits.memory` | Memory limit | `256Mi` |
-| `controller.resources.requests.cpu` | CPU request | `100m` |
-| `controller.resources.requests.memory` | Memory request | `128Mi` |
-| `service.metrics.enabled` | Enable metrics service | `true` |
-| `service.webhook.enabled` | Enable webhook service | `true` |
-| `webhook.enabled` | Enable webhooks | `true` |
-| `webhook.certManager.enabled` | Use cert-manager for certificates | `false` |
-| `rbac.create` | Create RBAC resources | `true` |
-| `crds.install` | Install CRDs | `true` |
-| `namespace.create` | Create namespace | `true` |
-| `namespace.name` | Namespace name | `mcall-system` |
-
-## Examples
-
-### Development Environment
-
-```bash
-helm install mcall-operator-dev ./helm/mcall-operator \
+# Development environment
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-dev \
   --create-namespace \
   --values ./helm/mcall-operator/values-dev.yaml
+
+# Production environment
+helm install mcall-operator ./helm/mcall-operator \
+  --namespace mcall-system \
+  --create-namespace \
+  --values ./helm/mcall-operator/values.yaml
 ```
 
-### Production Environment
+### Verification
 
 ```bash
-# Install cert-manager first
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+# Check pods
+kubectl get pods -n mcall-dev
 
-# Install mcall-operator
-helm install mcall-operator-prod ./helm/mcall-operator \
+# Check services
+kubectl get svc -n mcall-dev
+
+# Check CRDs
+kubectl get crd | grep mcall
+```
+
+## Components
+
+This Helm chart deploys:
+
+1. **McallOperator** (CRD Controller)
+   - Manages McallTask and McallWorkflow CRDs
+   - Handles task scheduling and execution
+   
+2. **MCP Server** (Optional)
+   - Model Context Protocol server for AI assistant integration
+   - Enabled by default in dev, disabled in production
+
+3. **Supporting Resources**
+   - CRDs (McallTask, McallWorkflow)
+   - RBAC (ServiceAccounts, Roles, RoleBindings)
+   - Services (Metrics, Webhook, MCP)
+   - Ingress (MCP Server - optional)
+   - Jobs (Cleanup, Log cleanup, PostgreSQL init)
+
+## Configuration
+
+### Key Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `image.repository` | Operator image repository | `doohee323/tz-mcall-operator` |
+| `image.tag` | Operator image tag | `1.0.0` |
+| `controller.replicas` | Number of controller replicas | `2` |
+| `namespace.name` | Namespace name | `mcall-system` |
+| `mcpServer.enabled` | Enable MCP server | `false` |
+| `mcpServer.image.repository` | MCP server image repository | `doohee323/mcall-operator-mcp-server` |
+| `mcpServer.ingress.enabled` | Enable MCP server ingress | `false` |
+
+### MCP Server Configuration
+
+```yaml
+mcpServer:
+  enabled: true
+  
+  image:
+    repository: doohee323/mcall-operator-mcp-server
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  replicas: 2
+  
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: mcp.drillquiz.com
+        paths:
+          - path: /
+            pathType: Prefix
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+```
+
+### Logging Configuration
+
+```yaml
+logging:
+  enabled: true
+  backend: "postgres"  # postgres, mysql, elasticsearch, kafka
+  
+  postgresql:
+    enabled: true
+    host: "postgres.default.svc.cluster.local"
+    port: 5432
+    username: "admin"
+    password: ""  # Set via --set or values-secrets.yaml
+    database: "mcall_logs"
+```
+
+## Local Development & Testing
+
+### Validate Chart
+
+```bash
+# Method 1: Using Makefile (recommended)
+make helm-test
+
+# Method 2: Using validation script
+cd helm/mcall-operator
+./quick-test.sh values-dev.yaml
+
+# Method 3: Manual validation
+helm lint ./helm/mcall-operator -f ./helm/mcall-operator/values-dev.yaml
+helm template test ./helm/mcall-operator -f ./helm/mcall-operator/values-dev.yaml
+```
+
+### Simulate Jenkins Pipeline
+
+```bash
+# Quick simulation (skip Docker build)
+make jenkins-sim
+
+# Full simulation (with Docker build)
+./scripts/local-jenkins-test.sh local-test dev
+
+# Custom parameters
+./scripts/local-jenkins-test.sh <build-number> <branch> <skip-docker>
+```
+
+### Test Individual Commands
+
+```bash
+# Lint
+helm lint ./helm/mcall-operator -f ./helm/mcall-operator/values-dev.yaml
+
+# Template rendering
+helm template test ./helm/mcall-operator \
+  -f ./helm/mcall-operator/values-dev.yaml \
+  > /tmp/output.yaml
+
+# Check specific resources
+helm template test ./helm/mcall-operator \
+  -f ./helm/mcall-operator/values-dev.yaml \
+  -s templates/mcp-server-deployment.yaml
+
+# Override values
+helm template test ./helm/mcall-operator \
+  -f ./helm/mcall-operator/values-dev.yaml \
+  --set mcpServer.enabled=false \
+  --set image.tag=custom-123
+```
+
+### Package Chart
+
+```bash
+make helm-package
+# Output: dist/mcall-operator-*.tgz
+```
+
+## Installation Examples
+
+### Development with MCP Server
+
+```bash
+helm install mcall-operator ./helm/mcall-operator \
+  --namespace mcall-dev \
+  --create-namespace \
+  --values ./helm/mcall-operator/values-dev.yaml \
+  --set image.tag=latest \
+  --set mcpServer.image.tag=dev
+```
+
+### Production without MCP Server
+
+```bash
+helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --values ./helm/mcall-operator/values.yaml \
-  --wait \
-  --timeout=10m
+  --set mcpServer.enabled=false
 ```
 
 ### Custom Configuration
@@ -136,149 +211,241 @@ helm install mcall-operator ./helm/mcall-operator \
   --namespace mcall-system \
   --create-namespace \
   --set controller.replicas=5 \
-  --set controller.resources.limits.cpu=1000m \
-  --set controller.resources.limits.memory=1Gi \
-  --set webhook.enabled=true \
-  --set webhook.certManager.enabled=true
+  --set mcpServer.enabled=true \
+  --set mcpServer.ingress.enabled=true \
+  --set mcpServer.ingress.hosts[0].host=mcp.example.com
 ```
 
 ## Upgrading
 
 ```bash
-# Upgrade to latest version
-helm upgrade mcall-operator mcall/mcall-operator
+# Upgrade with new image tag
+helm upgrade mcall-operator ./helm/mcall-operator \
+  --namespace mcall-dev \
+  --set image.tag=v1.1.0 \
+  --set mcpServer.image.tag=v1.1.0 \
+  --reuse-values
 
-# Upgrade with custom values
-helm upgrade mcall-operator mcall/mcall-operator \
-  --values values.yaml
-
-# Upgrade specific image tag
-helm upgrade mcall-operator mcall/mcall-operator \
-  --set image.tag=1.1.0
+# Upgrade with new values
+helm upgrade mcall-operator ./helm/mcall-operator \
+  --namespace mcall-dev \
+  --values ./helm/mcall-operator/values-dev.yaml
 ```
 
 ## Uninstalling
 
 ### Automatic Cleanup
 
-The chart includes a pre-delete hook that automatically removes finalizers from all CRD resources before uninstalling:
+The chart includes a pre-delete hook that automatically removes finalizers:
 
 ```bash
-# Uninstall with automatic cleanup
-helm uninstall mcall-operator
+helm uninstall mcall-operator -n mcall-dev
 ```
 
-### Manual Cleanup
-
-If you need to manually clean up resources:
+### Manual Cleanup (if needed)
 
 ```bash
-# Remove finalizers from all mcalltasks
-kubectl get mcalltasks -n mcall-system -o name | xargs -I {} kubectl patch {} -n mcall-system -p '{"metadata":{"finalizers":[]}}' --type=merge
+# Remove finalizers from resources
+kubectl get mcalltasks -n mcall-dev -o name | \
+  xargs -I {} kubectl patch {} -n mcall-dev -p '{"metadata":{"finalizers":[]}}' --type=merge
 
-# Remove finalizers from all mcallworkflows
-kubectl get mcallworkflows -n mcall-system -o name | xargs -I {} kubectl patch {} -n mcall-system -p '{"metadata":{"finalizers":[]}}' --type=merge
+kubectl get mcallworkflows -n mcall-dev -o name | \
+  xargs -I {} kubectl patch {} -n mcall-dev -p '{"metadata":{"finalizers":[]}}' --type=merge
 
-
-# Force delete namespace if stuck in Terminating state
-kubectl patch namespace mcall-system -p '{"metadata":{"finalizers":[]}}' --type=merge
-```
-
-### Cleanup Configuration
-
-The cleanup feature can be configured in `values.yaml`:
-
-```yaml
-cleanup:
-  # Enable/disable cleanup job
-  enabled: true
-  
-  # Cleanup job image
-  image:
-    repository: bitnami/kubectl
-    tag: "latest"
-    pullPolicy: IfNotPresent
-  
-  # Resource limits for cleanup job
-  resources:
-    requests:
-      memory: "64Mi"
-      cpu: "100m"
-    limits:
-      memory: "128Mi"
-      cpu: "200m"
+# Delete CRDs (if needed)
+kubectl delete crd mcalltasks.mcall.tz.io
+kubectl delete crd mcallworkflows.mcall.tz.io
 ```
 
 ## Monitoring
 
-### Prometheus Integration
+### Check Status
 
-```yaml
-serviceMonitor:
-  enabled: true
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: mcall-operator
-  interval: 30s
-  timeout: 10s
-  path: /metrics
+```bash
+# Pod status
+kubectl get pods -n mcall-dev -l app.kubernetes.io/name=mcall-operator
+
+# MCP server status
+kubectl get pods -n mcall-dev -l app.kubernetes.io/component=mcp-server
+
+# Service status
+kubectl get svc -n mcall-dev
+
+# Ingress status
+kubectl get ingress -n mcall-dev
+```
+
+### View Logs
+
+```bash
+# Operator logs
+kubectl logs -n mcall-dev -l app.kubernetes.io/name=mcall-operator -f
+
+# MCP server logs
+kubectl logs -n mcall-dev -l app.kubernetes.io/component=mcp-server -f
 ```
 
 ### Health Checks
 
 ```bash
-# Check pod health
-kubectl get pods -n mcall-system -l app.kubernetes.io/name=mcall-operator
+# Port forward MCP server
+kubectl port-forward -n mcall-dev svc/tz-mcall-operator-mcp-server 3000:80
 
-# Check service health
-kubectl get svc -n mcall-system
-
-# Check CRD status
-kubectl get crd | grep mcall
+# Test endpoints
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+curl http://localhost:3000/
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **CRD Installation Failed**
-   ```bash
-   kubectl get crd | grep mcall
-   kubectl describe crd mcalltasks.mcall.tz.io
-   ```
+#### Namespace Ownership Conflict
 
-2. **Webhook Certificate Issues**
-   ```bash
-   kubectl get secret mcall-operator-webhook-certs -n mcall-system
-   kubectl describe validatingwebhookconfigurations
-   ```
+**Symptom:**
+```
+Error: Unable to continue with install: Namespace "xxx" exists and cannot be imported
+```
 
-3. **Resource Constraints**
-   ```bash
-   kubectl top pods -n mcall-system
-   kubectl describe pod -n mcall-system -l app.kubernetes.io/name=mcall-operator
-   ```
+**Solutions:**
+```bash
+# Option 1: Use different namespace
+helm install test ./helm/mcall-operator \
+  --namespace helm-test --create-namespace
 
-### Debug Mode
+# Option 2: Use helm template (no namespace management)
+helm template test ./helm/mcall-operator -f values-dev.yaml
+
+# Option 3: Check and use existing release
+helm list -n mcall-dev
+helm upgrade <existing-release> ./helm/mcall-operator
+```
+
+#### Template Rendering Errors
 
 ```bash
-# Enable debug logging
-helm upgrade mcall-operator ./helm/mcall-operator \
-  --namespace mcall-system \
-  --set controller.env.DEBUG=true \
-  --set controller.env.LOG_LEVEL=debug
+# Debug mode
+helm template test ./helm/mcall-operator \
+  -f values-dev.yaml \
+  --debug
+
+# Check specific template
+helm template test ./helm/mcall-operator \
+  -f values-dev.yaml \
+  -s templates/deployment.yaml \
+  --debug
 ```
+
+#### MCP Server Not Deploying
+
+```bash
+# Check if enabled
+helm template test ./helm/mcall-operator \
+  -f values-dev.yaml \
+  | grep -c "mcp-server"
+
+# Verify values
+helm show values ./helm/mcall-operator
+```
+
+#### Image Pull Errors
+
+```bash
+# Check images exist
+docker pull doohee323/tz-mcall-operator:latest
+docker pull doohee323/mcall-operator-mcp-server:dev
+
+# Check pull secrets
+kubectl get secret -n mcall-dev
+```
+
+## Advanced Usage
+
+### Custom Values File
+
+Create a `values-custom.yaml`:
+
+```yaml
+controller:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+mcpServer:
+  enabled: true
+  replicas: 3
+  ingress:
+    enabled: true
+    hosts:
+      - host: mcp.custom.com
+        paths:
+          - path: /
+            pathType: Prefix
+```
+
+Install:
+```bash
+helm install mcall-operator ./helm/mcall-operator \
+  --namespace mcall-custom \
+  --create-namespace \
+  --values values-custom.yaml
+```
+
+### Multi-Environment Deployment
+
+```bash
+# Development
+helm install mcall-dev ./helm/mcall-operator \
+  -f values-dev.yaml \
+  -n mcall-dev --create-namespace
+
+# Staging
+helm install mcall-staging ./helm/mcall-operator \
+  -f values-staging.yaml \
+  -n mcall-staging --create-namespace
+
+# Production
+helm install mcall-prod ./helm/mcall-operator \
+  -f values.yaml \
+  -n mcall-system --create-namespace
+```
+
+## Development Workflow
+
+1. **Make changes** to code
+2. **Test locally**:
+   ```bash
+   make jenkins-sim
+   ```
+3. **Commit and push**:
+   ```bash
+   git add .
+   git commit -m "feat: add feature"
+   git push origin dev
+   ```
+4. **Jenkins automatically**:
+   - Builds images
+   - Validates chart
+   - Deploys to cluster
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test the changes
+4. Test using `make jenkins-sim`
 5. Submit a pull request
 
 ## License
 
-This chart is licensed under the MIT License.
+MIT License - See parent project LICENSE file
 
+## Links
 
+- [Parent Project](../../README.md)
+- [MCP Server Guide](../../MCP_SERVER_GUIDE.md)
+- [CI/CD Documentation](../../ci/README.md)
+- [Technical Documentation](../../TECHNICAL_DOCS.md)

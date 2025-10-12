@@ -185,10 +185,109 @@ cleanup_conflicting_resources() {
     echo "✅ Conflicting resources cleanup completed"
 }
 
-# Deploy CRDs (now handled by Helm automatically)
+# Deploy CRDs
 deploy_crds() {
-    echo "🔧 CRDs will be installed automatically by Helm chart..."
-    echo "✅ CRD installation delegated to Helm"
+    echo "🔧 Deploying CRDs..."
+    
+    # Apply CRD manifests from Helm chart templates
+    # Note: Helm doesn't update CRDs on upgrade, so we apply them explicitly
+    # For CRDs, we use 'replace --force' to ensure schema updates are applied
+    if [ -d "crds" ]; then
+        echo "Applying CRDs from crds/"
+        
+        for crd_file in crds/*.yaml; do
+            [ -f "$crd_file" ] || continue
+            
+            CRD_NAME=$(grep "name:" "$crd_file" | head -1 | awk '{print $2}')
+            echo ""
+            echo "========================================="
+            echo "Processing CRD: $CRD_NAME"
+            echo "========================================="
+            
+            # Check file content for new fields
+            echo "📄 Checking CRD file content..."
+            if grep -q "inputSources" "$crd_file"; then
+                echo "  ✅ File contains 'inputSources' field"
+            else
+                echo "  ⚠️  File does NOT contain 'inputSources' field"
+            fi
+            if grep -q "inputTemplate" "$crd_file"; then
+                echo "  ✅ File contains 'inputTemplate' field"
+            else
+                echo "  ⚠️  File does NOT contain 'inputTemplate' field"
+            fi
+            
+            # Apply or replace CRD (avoids API server schema cache issues)
+            echo "  📦 Applying CRD with new schema..."
+            # Save output to temp file and check exit code
+            CREATE_OUTPUT=$(mktemp)
+            if kubectl apply -f "$crd_file" > "$CREATE_OUTPUT" 2>&1; then
+                # Indent output
+                sed 's/^/    /' "$CREATE_OUTPUT"
+                rm -f "$CREATE_OUTPUT"
+                
+                echo "  ✅ Apply succeeded"
+                
+                # Add Helm metadata to CRD for ownership
+                echo "  🏷️  Adding Helm metadata to CRD..."
+                HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
+                kubectl label crd "$CRD_NAME" app.kubernetes.io/managed-by=Helm --overwrite 2>&1 | sed 's/^/    /'
+                kubectl annotate crd "$CRD_NAME" meta.helm.sh/release-name="${HELM_RELEASE_NAME}" --overwrite 2>&1 | sed 's/^/    /'
+                kubectl annotate crd "$CRD_NAME" meta.helm.sh/release-namespace="${NAMESPACE}" --overwrite 2>&1 | sed 's/^/    /'
+                echo "  ✅ Helm metadata added"
+                
+                # Wait for API server to process and load new schema
+                echo "  ⏳ Waiting for API server to load new CRD schema..."
+                sleep 10
+                
+                # Verify new fields are present
+                echo "  🔍 Verifying new CRD..."
+                kubectl get crd "$CRD_NAME" -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
+                    python3 -c "import sys, json; data = json.load(sys.stdin); fields = list(data.keys()); print('    Total fields:', len(fields)); print('    Has inputSources:', 'inputSources' in fields); print('    Has inputTemplate:', 'inputTemplate' in fields)" 2>/dev/null || echo "    (Could not verify new fields)"
+            else
+                # Show error output
+                sed 's/^/    /' "$CREATE_OUTPUT"
+                rm -f "$CREATE_OUTPUT"
+                echo "  ❌ Apply failed for $CRD_NAME"
+                return 1
+            fi
+        done
+        
+        echo ""
+        echo "========================================="
+        echo "✅ CRD deployment completed"
+        echo "========================================="
+        
+        # Wait for CRDs to be established
+        echo "⏳ Waiting for CRDs to be re-established..."
+        sleep 5  # Give k8s API server time to process
+        kubectl wait --for condition=established --timeout=60s crd/mcalltasks.mcall.tz.io 2>&1 || echo "⚠️  McallTask CRD not established yet"
+        kubectl wait --for condition=established --timeout=60s crd/mcallworkflows.mcall.tz.io 2>&1 || echo "⚠️  McallWorkflow CRD not established yet"
+        
+        # Final verification with detailed field check
+        echo ""
+        echo "📋 Final Verification:"
+        echo "========================================="
+        if kubectl get crd mcalltasks.mcall.tz.io >/dev/null 2>&1; then
+            echo "✅ mcalltasks.mcall.tz.io is present"
+            kubectl get crd mcalltasks.mcall.tz.io -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}' 2>/dev/null | \
+                python3 -c "import sys, json; data = json.load(sys.stdin); fields = sorted(data.keys()); print('   Total fields:', len(fields)); print('   Has inputSources:', 'inputSources' in fields); print('   Has inputTemplate:', 'inputTemplate' in fields); print('   All fields:', ', '.join(fields))" 2>/dev/null || echo "   (Could not read fields)"
+        else
+            echo "❌ mcalltasks.mcall.tz.io is MISSING"
+        fi
+        
+        if kubectl get crd mcallworkflows.mcall.tz.io >/dev/null 2>&1; then
+            echo "✅ mcallworkflows.mcall.tz.io is present"
+            kubectl get crd mcallworkflows.mcall.tz.io -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.tasks.items.properties}' 2>/dev/null | \
+                python3 -c "import sys, json; data = json.load(sys.stdin); fields = sorted(data.keys()); print('   Total fields:', len(fields)); print('   Has condition:', 'condition' in fields); print('   Has inputSources:', 'inputSources' in fields); print('   All fields:', ', '.join(fields))" 2>/dev/null || echo "   (Could not read fields)"
+        else
+            echo "❌ mcallworkflows.mcall.tz.io is MISSING"
+        fi
+        echo "========================================="
+    else
+        echo "⚠️  CRD directory not found: crds/"
+        echo "CRDs will be installed by Helm chart (first install only)..."
+    fi
 }
 
 # Deploy Helm chart
@@ -214,6 +313,15 @@ deploy_helm_chart() {
     kubectl annotate namespace ${NAMESPACE} meta.helm.sh/release-name=${HELM_RELEASE_NAME} --overwrite
     kubectl annotate namespace ${NAMESPACE} meta.helm.sh/release-namespace=${NAMESPACE} --overwrite
     
+    # Determine MCP server image tag based on branch
+    if [ "${GIT_BRANCH}" = "main" ]; then
+        MCP_IMAGE_TAG="latest"
+    elif [ "${GIT_BRANCH}" = "qa" ]; then
+        MCP_IMAGE_TAG="staging"
+    else
+        MCP_IMAGE_TAG="dev"
+    fi
+    
     # Install or upgrade Helm chart with staging postfix
     HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     HELM_BIN="/tmp/helm/linux-amd64/helm"
@@ -223,6 +331,8 @@ deploy_helm_chart() {
             --values "helm/mcall-operator/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
             --set image.repository="doohee323/tz-mcall-operator" \
+            --set mcpServer.image.tag="${BUILD_NUMBER}" \
+            --set mcpServer.image.repository="doohee323/mcall-operator-mcp-server" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
@@ -235,6 +345,8 @@ deploy_helm_chart() {
             --values "helm/mcall-operator/${VALUES_FILE}" \
             --set image.tag="${BUILD_NUMBER}" \
             --set image.repository="doohee323/tz-mcall-operator" \
+            --set mcpServer.image.tag="${BUILD_NUMBER}" \
+            --set mcpServer.image.repository="doohee323/mcall-operator-mcp-server" \
             --set namespace.name="${NAMESPACE}" \
             --set logging.postgresql.password="${POSTGRES_PASSWORD:-}" \
             --set logging.mysql.password="${MYSQL_PASSWORD:-}" \
@@ -379,30 +491,54 @@ cleanup_deployment() {
 
 # Main deployment function
 deploy_to_kubernetes() {
-    echo "🚀 Starting CRD deployment to Kubernetes..."
+    echo "🚀 Starting deployment to Kubernetes..."
     
     # Install required tools
     install_helm
     install_kubectl
     
-    # Force clean up all mcall resources first
-    force_cleanup_all_mcall_resources
+    HELM_RELEASE_NAME="tz-mcall-operator${STAGING_POSTFIX}"
     
-    # Deploy CRDs first
+    # Check if this is a fresh install or upgrade
+    HELM_BIN="/tmp/helm/linux-amd64/helm"
+    if [ -f "$HELM_BIN" ]; then
+        HELM_CMD="$HELM_BIN"
+    else
+        HELM_CMD="helm"
+    fi
+    
+    # Check if Helm release exists
+    if $HELM_CMD list -n ${NAMESPACE} 2>/dev/null | grep -q ${HELM_RELEASE_NAME}; then
+        echo "📦 Existing Helm release found: ${HELM_RELEASE_NAME}"
+        DEPLOYMENT_TYPE="upgrade"
+    else
+        echo "📦 No existing Helm release found, will perform fresh install"
+        DEPLOYMENT_TYPE="install"
+        
+        # For fresh install, clean up any orphaned resources
+        cleanup_conflicting_resources
+    fi
+    
+    # Always update CRDs first (Helm doesn't update CRDs on upgrade)
+    echo "🔧 Updating CRDs..."
     deploy_crds
     
-    # Deploy Helm chart
+    # Deploy Helm chart (install or upgrade)
+    echo "🚀 Deploying Helm chart (${DEPLOYMENT_TYPE})..."
     deploy_helm_chart
     
     # Verify deployment
     verify_deployment
     
-    # Test CRD functionality (optional)
+    # Test CRD functionality (optional, only for dev)
     if [ "${NAMESPACE}" != "mcall-system" ]; then
         test_crd_functionality
     fi
     
-    echo "🎉 CRD deployment completed successfully!"
+    echo "🎉 Deployment completed successfully!"
+    echo "   Deployment type: ${DEPLOYMENT_TYPE}"
+    echo "   Namespace: ${NAMESPACE}"
+    echo "   Release: ${HELM_RELEASE_NAME}"
 }
 
 # Main execution logic

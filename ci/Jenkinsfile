@@ -13,6 +13,7 @@ pipeline {
 
         BUILD_NUMBER = "${env.BUILD_NUMBER ?: 'latest'}"
         DOCKER_NAME = "tz-mcall-operator"
+        MCP_DOCKER_NAME = "mcall-operator-mcp-server"
         APP_NAME = "tz-mcall-operator"
         DEPLOYMENT_NAME = 'tz-mcall-operator'
         NAMESPACE = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'main' || (env.BRANCH_NAME ?: env.GIT_BRANCH ?: env.CHANGE_BRANCH ?: 'main').replaceAll('^origin/', '') == 'qa' ? 'mcall-system' : 'mcall-dev'}"
@@ -76,31 +77,50 @@ pipeline {
             }
         }
 
-        stage('Build & Push Image') {
+        stage('Build & Push Images') {
             steps {
                 container('docker') {
                     script {
                         try {
                             withDockerRegistry(credentialsId: "${DOCKERHUB_CREDENTIALS_ID}", url: '') {
-                                def image = "${REGISTRY}/${DOCKER_NAME}:${BUILD_NUMBER}"
+                                // Build and push operator image
+                                def operatorImage = "${REGISTRY}/${DOCKER_NAME}:${BUILD_NUMBER}"
                                 
-                                echo "Building Docker image: ${image}"
-                                echo "Registry: ${REGISTRY}, Docker Name: ${DOCKER_NAME}, Build Number: ${BUILD_NUMBER}"
-                                
-                                // Build controller image
-                                sh "docker build -f docker/Dockerfile -t ${image} ."
+                                echo "Building Operator Docker image: ${operatorImage}"
+                                sh "docker build -f docker/Dockerfile -t ${operatorImage} ."
                                 
                                 // Tag with latest for dev branches
                                 if (env.BRANCH_NAME != "main") {
-                                    sh "docker tag ${image} ${REGISTRY}/${DOCKER_NAME}:latest"
+                                    sh "docker tag ${operatorImage} ${REGISTRY}/${DOCKER_NAME}:latest"
                                 }
 
-                                echo "Pushing image: ${image}"
-                                sh "docker push ${image}"
+                                echo "Pushing Operator image: ${operatorImage}"
+                                sh "docker push ${operatorImage}"
                                 
                                 if (env.BRANCH_NAME != "main") {
                                     sh "docker push ${REGISTRY}/${DOCKER_NAME}:latest"
                                 }
+                                
+                                // Build and push MCP server image
+                                def mcpImage = "${REGISTRY}/${MCP_DOCKER_NAME}:${BUILD_NUMBER}"
+                                
+                                echo "Building MCP Server Docker image: ${mcpImage}"
+                                sh "docker build -f mcp-server/Dockerfile -t ${mcpImage} ./mcp-server"
+                                
+                                // Tag with appropriate suffix for branch
+                                if (env.BRANCH_NAME == "main") {
+                                    sh "docker tag ${mcpImage} ${REGISTRY}/${MCP_DOCKER_NAME}:latest"
+                                    sh "docker push ${REGISTRY}/${MCP_DOCKER_NAME}:latest"
+                                } else if (env.BRANCH_NAME == "qa") {
+                                    sh "docker tag ${mcpImage} ${REGISTRY}/${MCP_DOCKER_NAME}:staging"
+                                    sh "docker push ${REGISTRY}/${MCP_DOCKER_NAME}:staging"
+                                } else {
+                                    sh "docker tag ${mcpImage} ${REGISTRY}/${MCP_DOCKER_NAME}:dev"
+                                    sh "docker push ${REGISTRY}/${MCP_DOCKER_NAME}:dev"
+                                }
+
+                                echo "Pushing MCP Server image: ${mcpImage}"
+                                sh "docker push ${mcpImage}"
                             }
                         } catch (err) {
                             echo "Docker push failed: ${err}"
@@ -133,7 +153,7 @@ pipeline {
             }
         }
 
-        stage('Deploy CRDs') {
+        stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
                     script {
@@ -142,46 +162,21 @@ pipeline {
                                 sh '''
                                     export PATH=$PATH:.:
                                     chmod +x ci/k8s.sh
-                                    echo "🚀 Starting CRD deployment..."
-                                    echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
-                                    echo "  GIT_BRANCH: ${GIT_BRANCH}"
-                                    echo "  NAMESPACE: ${NAMESPACE}"
-                                    echo "  VALUES_FILE: ${VALUES_FILE}"
-                                    ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} deploy
-                                '''
-                            }
-                        } catch (err) {
-                            echo "CRD deployment failed: ${err}"
-                            error("Stopping pipeline due to CRD deployment failure.")
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Deploy Helm Chart') {
-            steps {
-                container('kubectl') {
-                    script {
-                        try {
-                            withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
-                                sh '''
-                                    export PATH=$PATH:.:
-                                    chmod +x ci/k8s.sh
-                                    echo "🚀 Starting Helm chart deployment using k8s.sh..."
+                                    echo "🚀 Starting Kubernetes deployment..."
                                     echo "  BUILD_NUMBER: ${BUILD_NUMBER}"
                                     echo "  GIT_BRANCH: ${GIT_BRANCH}"
                                     echo "  NAMESPACE: ${NAMESPACE}"
                                     echo "  VALUES_FILE: ${VALUES_FILE}"
                                     
+                                    # Single deployment call: cleanup, CRDs, and Helm chart
                                     ./ci/k8s.sh ${BUILD_NUMBER} ${GIT_BRANCH} ${NAMESPACE} ${VALUES_FILE} deploy
                                     
-                                    echo "✅ Helm chart deployment completed"
+                                    echo "✅ Kubernetes deployment completed"
                                 '''
                             }
                         } catch (err) {
-                            echo "Helm chart deployment failed: ${err}"
-                            error("Stopping pipeline due to Helm deployment failure.")
+                            echo "Kubernetes deployment failed: ${err}"
+                            error("Stopping pipeline due to deployment failure.")
                         }
                     }
                 }

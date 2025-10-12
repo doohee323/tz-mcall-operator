@@ -1,0 +1,127 @@
+# Task Result Passing Example: Health Check with Conditional Logging
+#
+# This workflow demonstrates:
+# 1. Health check of us.drillquiz.com
+# 2. Conditional execution based on health check result
+# 3. Task result passing via InputSources and InputTemplate
+# 4. Logging to local disk (/app/log/mcall/)
+
+---
+# Template Task 1: Health Check
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: health-check-template
+  namespace: mcall-dev
+spec:
+  type: get
+  input: https://us.drillquiz.com/aaa
+  timeout: 30
+  retryCount: 0
+
+---
+# Template Task 2: Success Logger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: log-success-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 10
+
+---
+# Template Task 3: Failure Logger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: log-failure-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 10
+
+---
+# Workflow: Health Monitor with Result Passing
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: health-monitor
+  namespace: mcall-dev
+spec:
+  schedule: '*/1 * * * *'  # Every 1 minute
+  tasks:
+  
+  # Task 1: Health Check us.drillquiz.com
+  - name: healthcheck
+    taskRef:
+      name: health-check-template
+      namespace: mcall-dev
+  
+  # Task 2: Log Success (runs only if healthcheck succeeds)
+  - name: log-success
+    taskRef:
+      name: log-success-template
+      namespace: mcall-dev
+    dependencies:
+      - healthcheck
+    condition:
+      dependentTask: healthcheck
+      when: success
+    inputSources:
+      - name: HEALTH_PHASE
+        taskRef: healthcheck
+        field: phase
+      - name: ERROR_CODE
+        taskRef: healthcheck
+        field: errorCode
+      - name: COMPLETION_TIME
+        taskRef: healthcheck
+        field: completionTime
+      - name: START_TIME
+        taskRef: healthcheck
+        field: startTime
+    inputTemplate: |
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ SUCCESS - Phase: ${HEALTH_PHASE}, ErrorCode: ${ERROR_CODE}" >> /app/log/mcall/health_monitor.log
+      echo "  Started: ${START_TIME}, Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
+      echo "  us.drillquiz.com is UP" >> /app/log/mcall/health_monitor.log
+      echo "---" >> /app/log/mcall/health_monitor.log
+      tail -30 /app/log/mcall/health_monitor.log
+  
+  # Task 3: Log Failure (runs only if healthcheck fails)
+  - name: log-failure
+    taskRef:
+      name: log-failure-template
+      namespace: mcall-dev
+    dependencies:
+      - healthcheck
+    condition:
+      dependentTask: healthcheck
+      when: failure
+    inputSources:
+      - name: HEALTH_PHASE
+        taskRef: healthcheck
+        field: phase
+      - name: ERROR_CODE
+        taskRef: healthcheck
+        field: errorCode
+      - name: ERROR_MESSAGE
+        taskRef: healthcheck
+        field: errorMessage
+        default: "Unknown error"
+      - name: COMPLETION_TIME
+        taskRef: healthcheck
+        field: completionTime
+      - name: START_TIME
+        taskRef: healthcheck
+        field: startTime
+    inputTemplate: |
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ FAILED - Phase: ${HEALTH_PHASE}, ErrorCode: ${ERROR_CODE}" >> /app/log/mcall/health_monitor.log
+      echo "  Started: ${START_TIME}, Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
+      echo "  Error: ${ERROR_MESSAGE}" >> /app/log/mcall/health_monitor.log
+      echo "  us.drillquiz.com is DOWN" >> /app/log/mcall/health_monitor.log
+      echo "---" >> /app/log/mcall/health_monitor.log
+      tail -30 /app/log/mcall/health_monitor.log
+
