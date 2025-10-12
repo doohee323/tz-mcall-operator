@@ -4,14 +4,14 @@ metadata:
   name: test-workflow
   namespace: mcall-dev
 spec:
-  schedule: "*/5 * * * *"  # 5분마다 실행
+  schedule: "*/5 * * * *"  # Run every 5 minutes
   tasks:
-    # Task 1: 간단한 echo 명령
+    # Task 1: Simple echo command
     - name: echo-task
       taskRef:
         name: echo-template
         namespace: mcall-dev
-    # Task 2: sleep 명령 (echo-task 이후 실행)
+    # Task 2: Sleep command (runs after echo-task)
     - name: sleep-task
       taskRef:
         name: sleep-template

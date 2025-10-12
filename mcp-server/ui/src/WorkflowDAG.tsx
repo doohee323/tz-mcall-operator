@@ -444,7 +444,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     };
   }, [currentNamespace, currentWorkflowName, selectedRunID]);
 
-  // 노드가 업데이트될 때 줌 설정
+  // Set zoom when nodes are updated
   useEffect(() => {
     if (reactFlowInstance.current && nodes.length > 0) {
       setTimeout(() => {
@@ -657,7 +657,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
             style={{
               position: 'absolute',
               right: '10px',
-              bottom: '10px' // 화면 하단에 가장 가깝게
+              bottom: '10px' // Closest to bottom of screen
             }}
           />
         </ReactFlow>
