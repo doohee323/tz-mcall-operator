@@ -187,7 +187,10 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const fetchAvailableNamespaces = useCallback(async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/namespaces`);
+      const apiKey = (window as any).MCP_API_KEY || '';
+      const response = await fetch(`${apiUrl}/api/namespaces`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setAvailableNamespaces(data.namespaces || []);
@@ -202,7 +205,10 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const fetchAvailableWorkflows = useCallback(async (ns: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/workflows/${ns}`);
+      const apiKey = (window as any).MCP_API_KEY || '';
+      const response = await fetch(`${apiUrl}/api/workflows/${ns}`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
+      });
       if (response.ok) {
         const workflows = await response.json();
         setAvailableWorkflows(workflows.workflows || []);
@@ -232,7 +238,10 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const fetchTaskDetails = useCallback(async (taskName: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/tasks/${currentNamespace}/${taskName}`);
+      const apiKey = (window as any).MCP_API_KEY || '';
+      const response = await fetch(`${apiUrl}/api/tasks/${currentNamespace}/${taskName}`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setSelectedTask(data.data);
@@ -263,7 +272,10 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     const fetchDAGInternal = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const response = await fetch(`${apiUrl}/api/workflows/${currentNamespace}/${currentWorkflowName}/dag`);
+        const apiKey = (window as any).MCP_API_KEY || '';
+        const response = await fetch(`${apiUrl}/api/workflows/${currentNamespace}/${currentWorkflowName}/dag`, {
+          headers: apiKey ? { 'X-API-Key': apiKey } : {}
+        });
         const data = await response.json();
 
         console.log('[DAG] API Response:', {
