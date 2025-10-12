@@ -860,6 +860,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                     <div>
                       <h4 style={{ fontSize: '14px', marginBottom: '8px', color: '#666' }}>Output:</h4>
                       <pre style={{
+                        textAlign: 'left',
                         backgroundColor: '#f5f5f5',
                         padding: '10px',
                         borderRadius: '4px',
