@@ -457,15 +457,27 @@ export function ApiTester() {
 
           {/* Response */}
           {response && (
-            <div style={{ textAlign: 'left' }}>
-              <h3 style={{ fontSize: '16px', marginBottom: '10px', textAlign: 'left' }}>Response</h3>
+            <div style={{ 
+              textAlign: 'left',
+              display: 'block',
+              width: '100%'
+            }}>
+              <h3 style={{ 
+                fontSize: '16px', 
+                marginBottom: '10px', 
+                textAlign: 'left',
+                display: 'block',
+                width: '100%'
+              }}>Response</h3>
               <div style={{
                 padding: '10px 15px',
                 background: response.status >= 200 && response.status < 300 ? '#e8f5e9' : '#ffebee',
                 border: `1px solid ${response.status >= 200 && response.status < 300 ? '#81c784' : '#ef9a9a'}`,
                 borderRadius: '4px',
                 marginBottom: '15px',
-                textAlign: 'left'
+                textAlign: 'left',
+                display: 'block',
+                width: '100%'
               }}>
                 <strong>Status:</strong> {response.status} {response.statusText}
               </div>
@@ -476,18 +488,28 @@ export function ApiTester() {
                 padding: '15px',
                 overflow: 'auto',
                 maxHeight: '500px',
-                textAlign: 'left',
-                direction: 'ltr'
+                textAlign: 'left !important',
+                direction: 'ltr',
+                display: 'block',
+                width: '100%',
+                boxSizing: 'border-box'
               }}>
                 <pre style={{
-                  margin: 0,
+                  margin: '0 !important',
+                  padding: '0 !important',
                   fontSize: '12px',
                   lineHeight: '1.5',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-all',
-                  textAlign: 'left',
+                  textAlign: 'left !important',
                   direction: 'ltr',
-                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                  display: 'block',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  outline: 'none'
                 }}>
                   {JSON.stringify(response.data, null, 2)}
                 </pre>
