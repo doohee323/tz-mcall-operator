@@ -1,0 +1,19 @@
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-get-jobs-rest
+  namespace: default
+spec:
+  type: get
+  schedule: "*/5 * * * *"  # 5분마다 실행
+  input: "https://admin:11197fa40f409842983025803948aa6bcc@jenkins.drillquiz.com/api/json?tree=jobs[name,url,buildable,lastBuild[number,result,timestamp]]"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-credentials
+  namespace: default
+type: Opaque
+stringData:
+  auth-header: "Basic YWRtaW46MTExOTdmYTQwZjQwOTg0Mjk4MzAyNTgwMzk0OGFhNmJjYw=="
+

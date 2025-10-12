@@ -1,0 +1,66 @@
+---
+# 특정 Job의 상세 정보 및 빌드 히스토리 조회
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-get-crd-job
+  namespace: default
+spec:
+  type: mcp-client
+  schedule: "*/15 * * * *"  # 15분마다
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "getJob"
+    arguments:
+      jobFullName: "tz-drillquiz-crd"  # 특정 job 지정
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: default
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+---
+# 특정 빌드의 로그 조회
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-get-build-log
+  namespace: default
+spec:
+  type: mcp-client
+  schedule: "*/20 * * * *"  # 20분마다
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "getBuildLog"
+    arguments:
+      jobFullName: "tz-drillquiz-crd"
+      # buildNumber를 생략하면 last build
+      offset: 0
+      limit: 50  # 최근 50 라인만
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: default
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"
+

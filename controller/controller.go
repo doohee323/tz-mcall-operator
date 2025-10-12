@@ -1935,7 +1935,106 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		}
 	}
 
-	// Parse arguments from JSON
+	// Create HTTP client with timeout
+	client := &http.Client{Timeout: timeout}
+
+	var sessionID string
+
+	// Helper function to send MCP request
+	sendMCPRequest := func(requestData map[string]interface{}) ([]byte, http.Header, error) {
+		jsonData, err := json.Marshal(requestData)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal request: %w", err)
+		}
+
+		req, err := http.NewRequest("POST", serverURL, strings.NewReader(string(jsonData)))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		if authHeader != "" && authValue != "" {
+			req.Header.Set(authHeader, authValue)
+		}
+
+		// Add session ID if available
+		if sessionID != "" {
+			req.Header.Set("mcp-session-id", sessionID)
+		}
+
+		// Add custom headers (including Accept header for Streamable HTTP)
+		for key, value := range config.Headers {
+			req.Header.Set(key, value)
+		}
+
+		// Ensure Accept header includes text/event-stream for Streamable HTTP
+		if req.Header.Get("Accept") == "" {
+			req.Header.Set("Accept", "text/event-stream, application/json")
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, nil, fmt.Errorf("request failed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read response: %w", err)
+		}
+
+		if resp.StatusCode >= 400 {
+			return body, resp.Header, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+		}
+
+		return body, resp.Header, nil
+	}
+
+	logger.Info("Starting MCP protocol handshake",
+		"serverUrl", serverURL,
+		"toolName", config.ToolName)
+
+	// Step 1: Initialize handshake
+	initRequest := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "initialize",
+		"params": map[string]interface{}{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]interface{}{},
+			"clientInfo": map[string]interface{}{
+				"name":    "tz-mcall-operator",
+				"version": "1.0.0",
+			},
+		},
+	}
+
+	initBody, initHeaders, err := sendMCPRequest(initRequest)
+	if err != nil {
+		return "", fmt.Errorf("initialize failed: %w", err)
+	}
+
+	// Extract session ID from response header
+	if sid := initHeaders.Get("mcp-session-id"); sid != "" {
+		sessionID = sid
+		logger.Info("Session ID extracted", "sessionId", sessionID)
+	}
+
+	logger.Info("MCP initialize completed", "responseLength", len(initBody))
+
+	// Step 2: Send notifications/initialized (optional but recommended)
+	notifyRequest := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "notifications/initialized",
+	}
+
+	_, _, err = sendMCPRequest(notifyRequest)
+	if err != nil {
+		logger.Info("notifications/initialized failed (non-critical)", "error", err.Error())
+		// Continue even if this fails - it's optional
+	}
+
+	// Step 3: Parse arguments from JSON
 	var arguments map[string]interface{}
 	if config.Arguments != nil && config.Arguments.Raw != nil {
 		if err := json.Unmarshal(config.Arguments.Raw, &arguments); err != nil {
@@ -1945,10 +2044,10 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		arguments = make(map[string]interface{})
 	}
 
-	// Build MCP JSON-RPC request
-	mcpRequest := map[string]interface{}{
+	// Step 4: Call the actual tool
+	toolRequest := map[string]interface{}{
 		"jsonrpc": "2.0",
-		"id":      1,
+		"id":      2,
 		"method":  "tools/call",
 		"params": map[string]interface{}{
 			"name":      config.ToolName,
@@ -1956,51 +2055,11 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		},
 	}
 
-	jsonData, err := json.Marshal(mcpRequest)
+	logger.Info("Calling MCP tool", "toolName", config.ToolName)
+
+	toolBody, _, err := sendMCPRequest(toolRequest)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal MCP request: %w", err)
-	}
-
-	logger.Info("Calling MCP server",
-		"serverUrl", serverURL,
-		"toolName", config.ToolName,
-		"hasAuth", authHeader != "")
-
-	// Create HTTP request
-	req, err := http.NewRequest("POST", serverURL, strings.NewReader(string(jsonData)))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if authHeader != "" && authValue != "" {
-		req.Header.Set(authHeader, authValue)
-	}
-
-	// Add custom headers
-	for key, value := range config.Headers {
-		req.Header.Set(key, value)
-	}
-
-	// Execute request with timeout
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("MCP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
-	}
-
-	logger.Info("MCP server response received",
-		"statusCode", resp.StatusCode,
-		"bodyLength", len(body))
-
-	if resp.StatusCode >= 400 {
-		return string(body), fmt.Errorf("MCP server returned error: %d", resp.StatusCode)
+		return "", fmt.Errorf("tools/call failed: %w", err)
 	}
 
 	// Parse and extract result
@@ -2018,10 +2077,10 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		} `json:"error"`
 	}
 
-	if err := json.Unmarshal(body, &mcpResponse); err != nil {
+	if err := json.Unmarshal(toolBody, &mcpResponse); err != nil {
 		// Return raw response if not valid JSON-RPC
 		logger.Info("MCP response is not valid JSON-RPC, returning raw response")
-		return string(body), nil
+		return string(toolBody), nil
 	}
 
 	if mcpResponse.Error != nil {
@@ -2032,12 +2091,31 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		return "", fmt.Errorf(errorMsg)
 	}
 
-	// Extract text from content
-	if len(mcpResponse.Result.Content) > 0 {
-		logger.Info("MCP call successful",
-			"contentItems", len(mcpResponse.Result.Content))
-		return mcpResponse.Result.Content[0].Text, nil
+	// Extract and process text content
+	var resultTexts []string
+	for i, content := range mcpResponse.Result.Content {
+		if content.Type == "text" {
+			// Limit each text content to prevent overflow
+			maxLen := 10000 // 10KB per item
+			if len(content.Text) > maxLen {
+				truncated := content.Text[:maxLen] + fmt.Sprintf("... [truncated, original length: %d bytes]", len(content.Text))
+				resultTexts = append(resultTexts, truncated)
+				logger.Info("Truncated large content", "item", i, "originalLength", len(content.Text))
+			} else {
+				resultTexts = append(resultTexts, content.Text)
+			}
+		}
 	}
 
-	return string(body), nil
+	if len(resultTexts) > 0 {
+		result := strings.Join(resultTexts, "\n---\n")
+		logger.Info("MCP tool call successful", 
+			"contentItems", len(resultTexts),
+			"resultLength", len(result))
+		return result, nil
+	}
+
+	// Return full response if no text content found
+	logger.Info("No text content found, returning raw response")
+	return string(toolBody), nil
 }

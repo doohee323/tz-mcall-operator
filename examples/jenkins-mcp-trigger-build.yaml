@@ -1,0 +1,68 @@
+---
+# Jenkins 빌드 트리거
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-trigger-build
+  namespace: default
+spec:
+  type: mcp-client
+  schedule: "0 2 * * *"  # 매일 오전 2시
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "triggerBuild"
+    arguments:
+      jobFullName: "tz-drillquiz-crd"
+      # parameters 없이 실행 (기본값 사용)
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: default
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+---
+# Jenkins 파라미터화된 빌드 트리거
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-trigger-build-with-params
+  namespace: default
+spec:
+  type: mcp-client
+  schedule: "0 3 * * *"  # 매일 오전 3시
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "triggerBuild"
+    arguments:
+      jobFullName: "tz-drillquiz-usecase"
+      parameters:
+        USECASE_TARGET_DOMAIN: "drillquiz-usecase.devops-qa.svc.cluster.local"
+        USECASE_TARGET_PORT: "80"
+        USECASE_TEST_TYPE: "k8s-qa"
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: default
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"
+

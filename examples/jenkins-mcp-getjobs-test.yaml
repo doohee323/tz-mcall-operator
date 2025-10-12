@@ -1,0 +1,38 @@
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-get-jobs
+  namespace: default
+spec:
+  type: mcp-client
+  schedule: "*/5 * * * *"  # 5분마다 실행
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/sse"
+    toolName: "getJobs"
+    arguments:
+      offset: 0
+      limit: 10
+    auth:
+      type: "basic"
+      headerName: "Authorization"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: default
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream"
+      Content-Type: "application/json"
+    connectionTimeout: 30
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"
+

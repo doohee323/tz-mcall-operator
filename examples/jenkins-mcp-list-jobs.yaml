@@ -1,0 +1,38 @@
+---
+# Job 목록만 간단하게 조회 (light-weight)
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-list-jobs
+  namespace: default
+spec:
+  type: mcp-client
+  schedule: "*/10 * * * *"  # 10분마다
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "getJobs"
+    arguments:
+      offset: 0
+      limit: 5  # 5개만 조회
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: default
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"
+
