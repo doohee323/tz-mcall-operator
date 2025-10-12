@@ -476,7 +476,8 @@ export function ApiTester() {
                 padding: '15px',
                 overflow: 'auto',
                 maxHeight: '500px',
-                textAlign: 'left'
+                textAlign: 'left',
+                direction: 'ltr'
               }}>
                 <pre style={{
                   margin: 0,
@@ -484,7 +485,9 @@ export function ApiTester() {
                   lineHeight: '1.5',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-all',
-                  textAlign: 'left'
+                  textAlign: 'left',
+                  direction: 'ltr',
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace'
                 }}>
                   {JSON.stringify(response.data, null, 2)}
                 </pre>
