@@ -54,24 +54,44 @@ function App() {
                 }}
               />
               <small style={{ color: '#666', fontSize: '12px', marginTop: '5px', display: 'block' }}>
-                💡 Find API key in Kubernetes: kubectl get secret mcp-api-keys -n mcall-dev -o jsonpath='{"{.data.api-keys}"}' | base64 -d
+                💡 API key is saved to browser localStorage automatically
               </small>
             </div>
-            <button
-              onClick={() => setShowConfig(false)}
-              disabled={!apiKey}
-              style={{
-                padding: '10px',
-                background: apiKey ? '#4caf50' : '#ccc',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: apiKey ? 'pointer' : 'not-allowed',
-                fontWeight: 'bold'
-              }}
-            >
-              ✅ Save Configuration
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowConfig(false)}
+                disabled={!apiKey}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: apiKey ? '#4caf50' : '#ccc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: apiKey ? 'pointer' : 'not-allowed',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✅ Continue
+              </button>
+              <button
+                onClick={() => {
+                  setApiKey('');
+                  localStorage.removeItem('mcp-api-key');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#f44336',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+                title="Clear saved API key"
+              >
+                🗑️ Clear
+              </button>
+            </div>
           </div>
         </div>
       )}
