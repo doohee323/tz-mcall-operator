@@ -2,6 +2,7 @@ package v1
 
 import (
 	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,6 +52,12 @@ type McallTaskSpec struct {
 
 	// InputTemplate: template string with variable substitution
 	InputTemplate string `json:"inputTemplate,omitempty"`
+
+	// MCP client configuration for type "mcp-client"
+	MCPConfig *MCPClientConfig `json:"mcpConfig,omitempty"`
+
+	// Secret references for sensitive data
+	SecretRefs []SecretReference `json:"secretRefs,omitempty"`
 }
 
 // TaskInputSource represents a reference to another task's result
@@ -231,4 +238,63 @@ type OutputValidation struct {
 
 	// Expected output content that indicates failure
 	ExpectedFailureOutput string `json:"expectedFailureOutput,omitempty"`
+}
+
+// MCPClientConfig defines MCP client specific configuration
+type MCPClientConfig struct {
+	// Server URL (can also use spec.input for backward compatibility)
+	ServerURL string `json:"serverUrl,omitempty"`
+
+	// Tool name to call on the MCP server
+	ToolName string `json:"toolName"`
+
+	// Arguments to pass to the tool (as JSON object)
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	Arguments *apiextensionsv1.JSON `json:"arguments,omitempty"`
+
+	// Authentication configuration
+	Auth *MCPAuthConfig `json:"auth,omitempty"`
+
+	// Additional headers for HTTP request
+	Headers map[string]string `json:"headers,omitempty"`
+
+	// Connection timeout in seconds (separate from execution timeout)
+	ConnectionTimeout int32 `json:"connectionTimeout,omitempty"`
+}
+
+// MCPAuthConfig defines authentication for MCP server
+type MCPAuthConfig struct {
+	// Type of authentication: "apiKey", "bearer", "basic", "none"
+	Type string `json:"type"`
+
+	// SecretRef points to a Kubernetes Secret containing credentials
+	SecretRef *v1.SecretReference `json:"secretRef,omitempty"`
+
+	// Key in the secret to use (for apiKey or bearer token)
+	SecretKey string `json:"secretKey,omitempty"`
+
+	// For basic auth: username key in secret
+	UsernameKey string `json:"usernameKey,omitempty"`
+
+	// For basic auth: password key in secret
+	PasswordKey string `json:"passwordKey,omitempty"`
+
+	// Header name for API key (default: "X-API-Key")
+	HeaderName string `json:"headerName,omitempty"`
+}
+
+// SecretReference references a Kubernetes Secret for environment variables
+type SecretReference struct {
+	// Name of the environment variable to set
+	EnvVarName string `json:"envVarName"`
+
+	// Secret reference
+	SecretRef v1.SecretReference `json:"secretRef"`
+
+	// Key in the secret
+	SecretKey string `json:"secretKey"`
+
+	// Optional: default value if secret not found
+	DefaultValue string `json:"defaultValue,omitempty"`
 }

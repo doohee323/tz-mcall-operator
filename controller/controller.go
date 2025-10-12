@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1473,6 +1474,9 @@ func (r *McallTaskReconciler) handleRunning(ctx context.Context, task *mcallv1.M
 		output, httpStatus, execErr = executeHTTPRequest(task.Spec.Input, "POST", taskTimeout)
 		task.Status.HTTPStatusCode = httpStatus
 
+	case "mcp-client":
+		output, execErr = r.executeMCPClient(ctx, task, taskTimeout)
+
 	default:
 		// Default to cmd execution
 		output, execErr = executeCommand(task.Spec.Input, taskTimeout)
@@ -1852,4 +1856,188 @@ func maskSensitiveData(output string) string {
 		masked = pattern.ReplaceAllString(masked, "$1=***MASKED***")
 	}
 	return masked
+}
+
+// getSecret retrieves a secret from Kubernetes
+func (r *McallTaskReconciler) getSecret(ctx context.Context, name, namespace, defaultNamespace string) (*corev1.Secret, error) {
+	ns := namespace
+	if ns == "" {
+		ns = defaultNamespace
+	}
+
+	var secret corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      name,
+		Namespace: ns,
+	}, &secret); err != nil {
+		return nil, err
+	}
+
+	return &secret, nil
+}
+
+// executeMCPClient executes MCP client call
+func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv1.McallTask, timeout time.Duration) (string, error) {
+	logger := log.FromContext(ctx)
+
+	if task.Spec.MCPConfig == nil {
+		return "", fmt.Errorf("mcpConfig is required for mcp-client type")
+	}
+
+	config := task.Spec.MCPConfig
+
+	// Get server URL (from mcpConfig or fallback to input)
+	serverURL := config.ServerURL
+	if serverURL == "" {
+		serverURL = task.Spec.Input
+	}
+	if serverURL == "" {
+		return "", fmt.Errorf("serverUrl is required")
+	}
+
+	// Resolve secrets for authentication
+	var authHeader string
+	var authValue string
+
+	if config.Auth != nil && config.Auth.SecretRef != nil {
+		secret, err := r.getSecret(ctx, config.Auth.SecretRef.Name,
+			config.Auth.SecretRef.Namespace, task.Namespace)
+		if err != nil {
+			return "", fmt.Errorf("failed to get auth secret: %w", err)
+		}
+
+		switch config.Auth.Type {
+		case "apiKey":
+			authHeader = config.Auth.HeaderName
+			if authHeader == "" {
+				authHeader = "X-API-Key"
+			}
+			authValue = string(secret.Data[config.Auth.SecretKey])
+
+		case "bearer":
+			authHeader = "Authorization"
+			authValue = "Bearer " + string(secret.Data[config.Auth.SecretKey])
+
+		case "basic":
+			username := string(secret.Data[config.Auth.UsernameKey])
+			password := string(secret.Data[config.Auth.PasswordKey])
+			authHeader = "Authorization"
+			// Use base64 encoding for basic auth
+			credentials := username + ":" + password
+			authValue = "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
+
+		case "none", "":
+			// No authentication
+			logger.Info("No authentication configured for MCP client")
+
+		default:
+			return "", fmt.Errorf("unknown auth type: %s", config.Auth.Type)
+		}
+	}
+
+	// Parse arguments from JSON
+	var arguments map[string]interface{}
+	if config.Arguments != nil && config.Arguments.Raw != nil {
+		if err := json.Unmarshal(config.Arguments.Raw, &arguments); err != nil {
+			return "", fmt.Errorf("failed to unmarshal arguments: %w", err)
+		}
+	} else {
+		arguments = make(map[string]interface{})
+	}
+
+	// Build MCP JSON-RPC request
+	mcpRequest := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/call",
+		"params": map[string]interface{}{
+			"name":      config.ToolName,
+			"arguments": arguments,
+		},
+	}
+
+	jsonData, err := json.Marshal(mcpRequest)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal MCP request: %w", err)
+	}
+
+	logger.Info("Calling MCP server",
+		"serverUrl", serverURL,
+		"toolName", config.ToolName,
+		"hasAuth", authHeader != "")
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", serverURL, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if authHeader != "" && authValue != "" {
+		req.Header.Set(authHeader, authValue)
+	}
+
+	// Add custom headers
+	for key, value := range config.Headers {
+		req.Header.Set(key, value)
+	}
+
+	// Execute request with timeout
+	client := &http.Client{Timeout: timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("MCP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	logger.Info("MCP server response received",
+		"statusCode", resp.StatusCode,
+		"bodyLength", len(body))
+
+	if resp.StatusCode >= 400 {
+		return string(body), fmt.Errorf("MCP server returned error: %d", resp.StatusCode)
+	}
+
+	// Parse and extract result
+	var mcpResponse struct {
+		Result struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+		Error *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &mcpResponse); err != nil {
+		// Return raw response if not valid JSON-RPC
+		logger.Info("MCP response is not valid JSON-RPC, returning raw response")
+		return string(body), nil
+	}
+
+	if mcpResponse.Error != nil {
+		errorMsg := fmt.Sprintf("MCP error %d: %s", mcpResponse.Error.Code, mcpResponse.Error.Message)
+		if mcpResponse.Error.Data != "" {
+			errorMsg += fmt.Sprintf(" - %s", mcpResponse.Error.Data)
+		}
+		return "", fmt.Errorf(errorMsg)
+	}
+
+	// Extract text from content
+	if len(mcpResponse.Result.Content) > 0 {
+		logger.Info("MCP call successful",
+			"contentItems", len(mcpResponse.Result.Content))
+		return mcpResponse.Result.Content[0].Text, nil
+	}
+
+	return string(body), nil
 }

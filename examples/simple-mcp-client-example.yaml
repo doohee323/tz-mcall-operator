@@ -1,0 +1,119 @@
+# Simple MCP Client Example
+#
+# This is a minimal example showing how to use the mcp-client type
+# to call an MCP server.
+#
+---
+# Example 1: Simple MCP Call with API Key Authentication
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: simple-mcp-call
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 30
+  
+  mcpConfig:
+    serverUrl: http://jenkins-mcp-server:3000/mcp
+    toolName: list_mcall_tasks
+    arguments:
+      namespace: mcall-dev
+    
+    auth:
+      type: apiKey
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      secretKey: api-key
+
+---
+# Example 2: MCP Call without Authentication
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mcp-call-no-auth
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 30
+  
+  mcpConfig:
+    serverUrl: http://internal-mcp-server:3000/mcp
+    toolName: get_status
+    auth:
+      type: none
+
+---
+# Example 3: MCP Call with Bearer Token
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mcp-call-bearer
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 30
+  
+  mcpConfig:
+    serverUrl: https://external-mcp.example.com/mcp
+    toolName: trigger_action
+    arguments:
+      action: deploy
+      environment: staging
+    
+    auth:
+      type: bearer
+      secretRef:
+        name: external-mcp-token
+      secretKey: token
+    
+    headers:
+      X-Request-ID: "req-12345"
+      X-Environment: "production"
+
+---
+# Example 4: MCP Call with Basic Authentication
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mcp-call-basic-auth
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 30
+  
+  mcpConfig:
+    serverUrl: http://secure-mcp-server:3000/mcp
+    toolName: admin_command
+    arguments:
+      command: restart_service
+      service_name: api-gateway
+    
+    auth:
+      type: basic
+      secretRef:
+        name: external-mcp-basic-auth
+      usernameKey: username
+      passwordKey: password
+
+---
+# Example 5: Using Input field as fallback
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mcp-call-with-input-fallback
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  input: http://mcp-server:3000/mcp  # Used if mcpConfig.serverUrl is not set
+  timeout: 30
+  
+  mcpConfig:
+    toolName: health_check
+    auth:
+      type: apiKey
+      secretRef:
+        name: jenkins-mcp-credentials
+      secretKey: api-key
+

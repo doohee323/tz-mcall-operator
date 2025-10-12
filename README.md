@@ -23,6 +23,7 @@
 ### Core Capabilities
 - **Command Execution**: Run any shell command
 - **HTTP Requests**: GET/POST to any URL  
+- **MCP Client**: Call other MCP servers (Jenkins, GitHub Actions, etc.)
 - **Scheduling**: Cron-based scheduling (like `crontab`)
 - **Parallel Execution**: Run multiple commands/requests at once
 - **Error Handling**: Automatic retry and timeout
@@ -32,6 +33,10 @@
 ### Advanced Features
 - **Task Result Passing**: Pass results between tasks with inputSources and inputTemplate
 - **Conditional Execution**: Execute tasks based on previous task results
+- **MCP Client Integration**: Orchestrate external services via MCP protocol
+  - Multiple authentication methods (API Key, Bearer, Basic Auth)
+  - Kubernetes Secret integration for secure credentials
+  - Support for any MCP-compliant server
 - **DAG Visualization**: Real-time workflow visualization with execution history
 - **MCP Server**: AI-assisted task management via Model Context Protocol
 - **API Key Authentication**: Secure access control for MCP endpoints
@@ -238,6 +243,30 @@ spec:
   timeout: 10
 ```
 
+### Call MCP Server (Jenkins Build Trigger)
+```yaml
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: trigger-jenkins-build
+spec:
+  type: mcp-client
+  timeout: 60
+  mcpConfig:
+    serverUrl: http://jenkins-mcp-server:3000/mcp
+    toolName: create_mcall_task
+    arguments:
+      name: build-job
+      type: cmd
+      input: "jenkins-cli build MyProject"
+      timeout: 300
+    auth:
+      type: apiKey
+      secretRef:
+        name: jenkins-mcp-credentials
+      secretKey: api-key
+```
+
 ### Cleanup Old Files
 ```yaml
 apiVersion: mcall.tz.io/v1
@@ -272,6 +301,32 @@ spec:
 - `cmd`: Execute shell commands
 - `get`: HTTP GET request  
 - `post`: HTTP POST request
+- `mcp-client`: Call MCP (Model Context Protocol) servers
+
+**MCP Client Example:**
+```yaml
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-mcp-call
+spec:
+  type: mcp-client
+  timeout: 60
+  mcpConfig:
+    serverUrl: http://jenkins-mcp-server:3000/mcp
+    toolName: create_mcall_task
+    arguments:
+      name: build-job
+      type: cmd
+      input: "make build"
+    auth:
+      type: apiKey
+      secretRef:
+        name: jenkins-mcp-credentials
+      secretKey: api-key
+```
+
+For more details, see: [MCP Client Guide](./examples/README-MCP-CLIENT.md)
 
 ### McallWorkflow - Chain Multiple Tasks
 

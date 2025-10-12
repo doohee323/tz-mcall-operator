@@ -133,6 +133,69 @@ spec:
               inputTemplate:
                 description: 'InputTemplate: template string with variable substitution'
                 type: string
+              mcpConfig:
+                description: MCP client configuration for type "mcp-client"
+                properties:
+                  arguments:
+                    description: Arguments to pass to the tool (as JSON object)
+                    x-kubernetes-preserve-unknown-fields: true
+                  auth:
+                    description: Authentication configuration
+                    properties:
+                      headerName:
+                        description: 'Header name for API key (default: "X-API-Key")'
+                        type: string
+                      passwordKey:
+                        description: 'For basic auth: password key in secret'
+                        type: string
+                      secretKey:
+                        description: Key in the secret to use (for apiKey or bearer
+                          token)
+                        type: string
+                      secretRef:
+                        description: SecretRef points to a Kubernetes Secret containing
+                          credentials
+                        properties:
+                          name:
+                            description: name is unique within a namespace to reference
+                              a secret resource.
+                            type: string
+                          namespace:
+                            description: namespace defines the space within which
+                              the secret name must be unique.
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      type:
+                        description: 'Type of authentication: "apiKey", "bearer",
+                          "basic", "none"'
+                        type: string
+                      usernameKey:
+                        description: 'For basic auth: username key in secret'
+                        type: string
+                    required:
+                    - type
+                    type: object
+                  connectionTimeout:
+                    description: Connection timeout in seconds (separate from execution
+                      timeout)
+                    format: int32
+                    type: integer
+                  headers:
+                    additionalProperties:
+                      type: string
+                    description: Additional headers for HTTP request
+                    type: object
+                  serverUrl:
+                    description: Server URL (can also use spec.input for backward
+                      compatibility)
+                    type: string
+                  toolName:
+                    description: Tool name to call on the MCP server
+                    type: string
+                required:
+                - toolName
+                type: object
               name:
                 description: Name identifier for this task
                 type: string
@@ -238,6 +301,40 @@ spec:
               schedule:
                 description: Cron schedule for recurring tasks (optional)
                 type: string
+              secretRefs:
+                description: Secret references for sensitive data
+                items:
+                  description: SecretReference references a Kubernetes Secret for
+                    environment variables
+                  properties:
+                    defaultValue:
+                      description: 'Optional: default value if secret not found'
+                      type: string
+                    envVarName:
+                      description: Name of the environment variable to set
+                      type: string
+                    secretKey:
+                      description: Key in the secret
+                      type: string
+                    secretRef:
+                      description: Secret reference
+                      properties:
+                        name:
+                          description: name is unique within a namespace to reference
+                            a secret resource.
+                          type: string
+                        namespace:
+                          description: namespace defines the space within which the
+                            secret name must be unique.
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                  required:
+                  - envVarName
+                  - secretKey
+                  - secretRef
+                  type: object
+                type: array
               timeout:
                 description: Timeout in seconds
                 format: int32
@@ -256,6 +353,14 @@ spec:
                 description: When the task completed
                 format: date-time
                 type: string
+              executionTimeMs:
+                description: Execution time in milliseconds (more precise than StartTime/CompletionTime
+                  diff)
+                format: int64
+                type: integer
+              httpStatusCode:
+                description: HTTP status code (for HTTP requests)
+                type: integer
               lastRetryTime:
                 description: Last retry attempt time
                 format: date-time

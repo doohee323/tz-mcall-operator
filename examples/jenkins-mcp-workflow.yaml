@@ -1,0 +1,254 @@
+# MCP Client Example: Jenkins Build Automation with Result Passing
+#
+# This workflow demonstrates:
+# 1. Calling Jenkins MCP server to trigger builds
+# 2. Checking build status via MCP client
+# 3. Task result passing between MCP calls
+# 4. Conditional execution based on build results
+# 5. Kubernetes Secret integration for authentication
+#
+---
+# Template Task 1: Jenkins MCP Build Trigger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-mcp-trigger-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 60
+  retryCount: 1
+  mcpConfig:
+    serverUrl: http://jenkins-mcp-server:3000/mcp
+    toolName: create_mcall_task
+    # Arguments will be set by inputTemplate in workflow
+    auth:
+      type: apiKey
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      secretKey: api-key
+      headerName: X-API-Key
+
+---
+# Template Task 2: Jenkins MCP Status Check
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-mcp-status-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 30
+  mcpConfig:
+    serverUrl: http://jenkins-mcp-server:3000/mcp
+    toolName: get_mcall_task
+    auth:
+      type: apiKey
+      secretRef:
+        name: jenkins-mcp-credentials
+      secretKey: api-key
+
+---
+# Template Task 3: Report Generator
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: report-generator-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template - will be overridden'"
+  timeout: 10
+
+---
+# Workflow: Periodic Jenkins Build Monitor
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: jenkins-build-monitor
+  namespace: mcall-dev
+spec:
+  schedule: '*/10 * * * *'  # Every 10 minutes
+  tasks:
+  
+  # Task 1: Trigger Jenkins Build via MCP
+  - name: trigger-jenkins-build
+    taskRef:
+      name: jenkins-mcp-trigger-template
+      namespace: mcall-dev
+    # Override arguments using InputTemplate
+    spec:
+      mcpConfig:
+        arguments:
+          name: jenkins-build-job
+          namespace: mcall-dev
+          type: cmd
+          input: "jenkins-cli build MyProject --parameters branch=main"
+          timeout: 300
+  
+  # Task 2: Check Build Status
+  - name: check-build-status
+    taskRef:
+      name: jenkins-mcp-status-template
+      namespace: mcall-dev
+    dependencies:
+      - trigger-jenkins-build
+    condition:
+      dependentTask: trigger-jenkins-build
+      when: success
+    inputSources:
+      - name: BUILD_TASK_NAME
+        taskRef: trigger-jenkins-build
+        field: output
+        jsonPath: "$.metadata.name"
+        default: "jenkins-build-job"
+    spec:
+      mcpConfig:
+        arguments:
+          name: jenkins-build-job
+          namespace: mcall-dev
+  
+  # Task 3: Success Report
+  - name: generate-success-report
+    taskRef:
+      name: report-generator-template
+      namespace: mcall-dev
+    dependencies:
+      - check-build-status
+    condition:
+      dependentTask: check-build-status
+      when: success
+    inputSources:
+      - name: BUILD_TASK_NAME
+        taskRef: trigger-jenkins-build
+        field: output
+        jsonPath: "$.metadata.name"
+        default: "unknown"
+      - name: BUILD_STATUS
+        taskRef: check-build-status
+        field: output
+        jsonPath: "$.status.phase"
+        default: "Unknown"
+      - name: BUILD_OUTPUT
+        taskRef: check-build-status
+        field: output
+        jsonPath: "$.status.result.output"
+        default: ""
+      - name: START_TIME
+        taskRef: check-build-status
+        field: startTime
+      - name: COMPLETION_TIME
+        taskRef: check-build-status
+        field: completionTime
+    inputTemplate: |
+      # Generate success report
+      cat > /app/log/mcall/jenkins_build_report.log <<EOF
+      ============================================
+      Jenkins Build Report - SUCCESS
+      Date: $(date '+%Y-%m-%d %H:%M:%S')
+      ============================================
+      Build Task: ${BUILD_TASK_NAME}
+      Status: ${BUILD_STATUS}
+      Started: ${START_TIME}
+      Completed: ${COMPLETION_TIME}
+      
+      Build Output:
+      ${BUILD_OUTPUT}
+      ============================================
+      EOF
+      
+      # Send Slack notification
+      curl -X POST "${SLACK_WEBHOOK_URL}" \
+        -H "Content-Type: application/json" \
+        -d "{\"text\": \"✅ Jenkins Build ${BUILD_TASK_NAME} succeeded!\"}" || true
+      
+      # Display report
+      tail -50 /app/log/mcall/jenkins_build_report.log
+    secretRefs:
+      - envVarName: SLACK_WEBHOOK_URL
+        secretRef:
+          name: notification-secrets
+          namespace: mcall-dev
+        secretKey: slack-webhook-url
+        defaultValue: "https://hooks.slack.com/services/DUMMY/WEBHOOK/URL"
+  
+  # Task 4: Failure Report
+  - name: generate-failure-report
+    taskRef:
+      name: report-generator-template
+      namespace: mcall-dev
+    dependencies:
+      - check-build-status
+    condition:
+      dependentTask: check-build-status
+      when: failure
+    inputSources:
+      - name: BUILD_TASK_NAME
+        taskRef: trigger-jenkins-build
+        field: output
+        jsonPath: "$.metadata.name"
+        default: "unknown"
+      - name: BUILD_STATUS
+        taskRef: check-build-status
+        field: phase
+        default: "Failed"
+      - name: ERROR_MESSAGE
+        taskRef: check-build-status
+        field: errorMessage
+        default: "Unknown error"
+      - name: START_TIME
+        taskRef: check-build-status
+        field: startTime
+      - name: COMPLETION_TIME
+        taskRef: check-build-status
+        field: completionTime
+    inputTemplate: |
+      # Generate failure report
+      cat > /app/log/mcall/jenkins_build_report.log <<EOF
+      ============================================
+      Jenkins Build Report - FAILED
+      Date: $(date '+%Y-%m-%d %H:%M:%S')
+      ============================================
+      Build Task: ${BUILD_TASK_NAME}
+      Status: ${BUILD_STATUS}
+      Started: ${START_TIME}
+      Completed: ${COMPLETION_TIME}
+      
+      Error Message:
+      ${ERROR_MESSAGE}
+      ============================================
+      EOF
+      
+      # Send Slack alert
+      curl -X POST "${SLACK_WEBHOOK_URL}" \
+        -H "Content-Type: application/json" \
+        -d "{\"text\": \"❌ Jenkins Build ${BUILD_TASK_NAME} failed: ${ERROR_MESSAGE}\"}" || true
+      
+      # Send PagerDuty alert (optional)
+      curl -X POST https://events.pagerduty.com/v2/enqueue \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"routing_key\": \"${PAGERDUTY_KEY}\",
+          \"event_action\": \"trigger\",
+          \"payload\": {
+            \"summary\": \"Jenkins Build Failed: ${BUILD_TASK_NAME}\",
+            \"severity\": \"error\",
+            \"source\": \"mcall-operator\"
+          }
+        }" || true
+      
+      # Display report
+      tail -50 /app/log/mcall/jenkins_build_report.log
+    secretRefs:
+      - envVarName: SLACK_WEBHOOK_URL
+        secretRef:
+          name: notification-secrets
+        secretKey: slack-webhook-url
+        defaultValue: "https://hooks.slack.com/services/DUMMY/WEBHOOK/URL"
+      - envVarName: PAGERDUTY_KEY
+        secretRef:
+          name: notification-secrets
+        secretKey: pagerduty-key
+        defaultValue: ""
+
