@@ -1,0 +1,200 @@
+# Real-World Example: Jenkins MCP Server Integration
+#
+# Prerequisites:
+# - Jenkins 2.492.3+ with MCP Server plugin installed
+# - Jenkins API Token for authentication
+# - Kubernetes Secret with credentials
+#
+# This workflow demonstrates:
+# 1. Calling Jenkins MCP Server to list jobs
+# 2. Triggering a Jenkins build via MCP
+# 3. Checking build status via MCP
+# 4. Conditional notification based on build result
+#
+---
+# Secret for Jenkins MCP Authentication
+# Create this first:
+# kubectl create secret generic jenkins-mcp-auth \
+#   --from-literal=username=admin \
+#   --from-literal=api-token=YOUR_JENKINS_API_TOKEN \
+#   -n mcall-dev
+---
+# Template Task: MCP Client Call
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-mcp-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  timeout: 60
+  mcpConfig:
+    serverUrl: https://jenkins.drillquiz.com/mcp-server/mcp
+    toolName: placeholder
+    auth:
+      type: basic
+      secretRef:
+        name: jenkins-mcp-auth
+        namespace: mcall-dev
+      usernameKey: username
+      passwordKey: api-token
+
+---
+# Workflow: Jenkins CI/CD Automation via MCP
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: jenkins-mcp-automation
+  namespace: mcall-dev
+spec:
+  schedule: '0 2 * * *'  # Daily at 2 AM
+  tasks:
+  
+  # Task 1: List Jenkins Jobs
+  - name: list-jenkins-jobs
+    taskRef:
+      name: jenkins-mcp-template
+    spec:
+      mcpConfig:
+        toolName: getJobs
+        arguments:
+          page: 0
+          pageSize: 20
+  
+  # Task 2: Trigger tz-drillquiz-crd Build
+  - name: trigger-build
+    taskRef:
+      name: jenkins-mcp-template
+    dependencies:
+      - list-jenkins-jobs
+    condition:
+      dependentTask: list-jenkins-jobs
+      when: success
+    spec:
+      mcpConfig:
+        toolName: triggerBuild
+        arguments:
+          jobFullName: "tz-drillquiz-crd"
+          parameters:
+            BRANCH: "main"
+            ENVIRONMENT: "production"
+  
+  # Task 3: Wait for build to start
+  - name: wait-for-build
+    spec:
+      type: cmd
+      input: "sleep 30"
+      timeout: 40
+    dependencies:
+      - trigger-build
+  
+  # Task 4: Check Build Status
+  - name: check-build-status
+    taskRef:
+      name: jenkins-mcp-template
+    dependencies:
+      - wait-for-build
+    spec:
+      mcpConfig:
+        toolName: getBuild
+        arguments:
+          jobFullName: "tz-drillquiz-crd"
+          # Gets last build by default
+  
+  # Task 5: Get Build Logs
+  - name: get-build-logs
+    taskRef:
+      name: jenkins-mcp-template
+    dependencies:
+      - check-build-status
+    condition:
+      dependentTask: check-build-status
+      when: success
+    inputSources:
+      - name: BUILD_NUMBER
+        taskRef: check-build-status
+        field: output
+        jsonPath: "$.number"
+        default: "last"
+    spec:
+      mcpConfig:
+        toolName: getBuildLog
+        arguments:
+          jobFullName: "tz-drillquiz-crd"
+          buildNumber: "last"
+          startLine: 0
+          maxLines: 100
+  
+  # Task 6: Success Notification
+  - name: notify-success
+    dependencies:
+      - check-build-status
+    condition:
+      dependentTask: check-build-status
+      when: success
+    inputSources:
+      - name: BUILD_NUMBER
+        taskRef: check-build-status
+        field: output
+        jsonPath: "$.number"
+      - name: BUILD_RESULT
+        taskRef: check-build-status
+        field: output
+        jsonPath: "$.result"
+    spec:
+      type: cmd
+      input: |
+        echo "[$(date)] ✅ Jenkins Build SUCCESS" >> /app/log/mcall/jenkins_builds.log
+        echo "  Job: tz-drillquiz-crd" >> /app/log/mcall/jenkins_builds.log
+        echo "  Build: #${BUILD_NUMBER}" >> /app/log/mcall/jenkins_builds.log
+        echo "  Result: ${BUILD_RESULT}" >> /app/log/mcall/jenkins_builds.log
+        echo "---" >> /app/log/mcall/jenkins_builds.log
+        tail -50 /app/log/mcall/jenkins_builds.log
+    secretRefs:
+      - envVarName: SLACK_WEBHOOK
+        secretRef:
+          name: notification-secrets
+        secretKey: slack-webhook-url
+        defaultValue: ""
+  
+  # Task 7: Failure Notification
+  - name: notify-failure
+    dependencies:
+      - check-build-status
+    condition:
+      dependentTask: check-build-status
+      when: failure
+    inputSources:
+      - name: BUILD_NUMBER
+        taskRef: check-build-status
+        field: output
+        jsonPath: "$.number"
+        default: "unknown"
+      - name: ERROR_MESSAGE
+        taskRef: check-build-status
+        field: errorMessage
+        default: "Build failed"
+    spec:
+      type: cmd
+      input: |
+        echo "[$(date)] ❌ Jenkins Build FAILED" >> /app/log/mcall/jenkins_builds.log
+        echo "  Job: tz-drillquiz-crd" >> /app/log/mcall/jenkins_builds.log
+        echo "  Build: #${BUILD_NUMBER}" >> /app/log/mcall/jenkins_builds.log
+        echo "  Error: ${ERROR_MESSAGE}" >> /app/log/mcall/jenkins_builds.log
+        echo "---" >> /app/log/mcall/jenkins_builds.log
+        
+        # Send alert if webhook is configured
+        if [ -n "${SLACK_WEBHOOK}" ]; then
+          curl -X POST "${SLACK_WEBHOOK}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"❌ Jenkins Build Failed: tz-drillquiz-crd #${BUILD_NUMBER}\"}"
+        fi
+        
+        tail -50 /app/log/mcall/jenkins_builds.log
+    secretRefs:
+      - envVarName: SLACK_WEBHOOK
+        secretRef:
+          name: notification-secrets
+        secretKey: slack-webhook-url
+        defaultValue: ""
+
