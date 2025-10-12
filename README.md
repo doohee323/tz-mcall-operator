@@ -20,6 +20,7 @@
 
 ## Key Features
 
+### Core Capabilities
 - **Command Execution**: Run any shell command
 - **HTTP Requests**: GET/POST to any URL  
 - **Scheduling**: Cron-based scheduling (like `crontab`)
@@ -27,6 +28,13 @@
 - **Error Handling**: Automatic retry and timeout
 - **Monitoring**: Built-in Kubernetes monitoring and logging
 - **Simple YAML**: Define everything in YAML files
+
+### Advanced Features
+- **Task Result Passing**: Pass results between tasks with inputSources and inputTemplate
+- **Conditional Execution**: Execute tasks based on previous task results
+- **DAG Visualization**: Real-time workflow visualization with execution history
+- **MCP Server**: AI-assisted task management via Model Context Protocol
+- **API Key Authentication**: Secure access control for MCP endpoints
 
 ## 📋 Table of Contents
 
