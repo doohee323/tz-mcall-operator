@@ -73,7 +73,10 @@ export function ApiTester() {
     const fetchNamespaces = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const res = await fetch(`${apiUrl}/api/namespaces`);
+        const apiKey = (window as any).MCP_API_KEY || '';
+        const res = await fetch(`${apiUrl}/api/namespaces`, {
+          headers: apiKey ? { 'X-API-Key': apiKey } : {}
+        });
         const data = await res.json();
         if (data.success && data.namespaces) {
           setAvailableNamespaces(data.namespaces);
@@ -101,7 +104,10 @@ export function ApiTester() {
     if (!namespace) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const res = await fetch(`${apiUrl}/api/workflows/${namespace}`);
+      const apiKey = (window as any).MCP_API_KEY || '';
+      const res = await fetch(`${apiUrl}/api/workflows/${namespace}`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
+      });
       const data = await res.json();
       console.log('[API-TESTER] Fetched workflows for namespace', namespace, ':', data);
       if (data.success && data.workflows) {
@@ -141,7 +147,10 @@ export function ApiTester() {
     if (!namespace) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const res = await fetch(`${apiUrl}/api/tasks/${namespace}`);
+      const apiKey = (window as any).MCP_API_KEY || '';
+      const res = await fetch(`${apiUrl}/api/tasks/${namespace}`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
+      });
       const data = await res.json();
       console.log('[API-TESTER] Fetched tasks for namespace', namespace, ':', data);
       if (data.success && data.tasks) {
@@ -173,11 +182,17 @@ export function ApiTester() {
       const fullUrl = `${apiUrl}${url}`;
       console.log('[API-TESTER] Testing:', selectedEndpoint.method, fullUrl);
 
+      const apiKey = (window as any).MCP_API_KEY || '';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (apiKey) {
+        headers['X-API-Key'] = apiKey;
+      }
+
       const res = await fetch(fullUrl, {
         method: selectedEndpoint.method,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers
       });
 
       const data = await res.json();
