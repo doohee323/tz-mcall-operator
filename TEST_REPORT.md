@@ -13,21 +13,21 @@ All **unit tests PASSED** ✓
 ### 🎯 Features Tested
 
 #### 1. Core Functions (Unit Tests)
-- ✅ **extractJSONPath** - JSON 데이터에서 필드 추출
+- ✅ **extractJSONPath** - Extract fields from JSON data
   - Simple field extraction
   - Numeric field extraction  
   - Nested field extraction
   - Invalid JSON handling
   - Non-existent field handling
 
-- ✅ **renderTemplate** - 템플릿 변수 치환
+- ✅ **renderTemplate** - Template variable substitution
   - Single variable substitution
   - Multiple variable substitution
   - Numeric values
   - No variables case
   - Unused variables handling
 
-- ✅ **checkTaskCondition** - 조건부 실행 로직
+- ✅ **checkTaskCondition** - Conditional execution logic
   - Success condition (dependent task succeeded)
   - Success condition (dependent task failed)
   - Failure condition (dependent task failed)
@@ -36,7 +36,7 @@ All **unit tests PASSED** ✓
   - FieldEquals - errorCode match
   - FieldEquals - errorCode mismatch
 
-- ✅ **processInputSources** - Task 결과 전달
+- ✅ **processInputSources** - Task result passing
   - Extract phase field
   - Extract errorCode field
   - Template with multiple sources
@@ -56,19 +56,19 @@ All **unit tests PASSED** ✓
    - ✅ DeepCopyInto for InputSources (fixed)
 
 2. **Controller Logic** (`controller/controller.go`)
-   - ✅ `processInputSources()` - 이전 Task 결과 가져오기
-   - ✅ `extractJSONPath()` - JSON에서 특정 필드 추출
-   - ✅ `renderTemplate()` - 템플릿 변수 치환
-   - ✅ `checkTaskCondition()` - 조건부 실행 확인
-   - ✅ `truncateString()` - 로깅용 문자열 자르기
-   - ✅ `handlePending()` - Condition 체크 통합
-   - ✅ `handleRunning()` - InputSources 처리 통합
+   - ✅ `processInputSources()` - Fetch previous task results
+   - ✅ `extractJSONPath()` - Extract specific fields from JSON
+   - ✅ `renderTemplate()` - Template variable substitution
+   - ✅ `checkTaskCondition()` - Conditional execution check
+   - ✅ `truncateString()` - String truncation for logging
+   - ✅ `handlePending()` - Condition check integration
+   - ✅ `handleRunning()` - InputSources processing integration
 
 3. **Workflow Controller** (`controller/mcallworkflow_controller.go`)
-   - ✅ Condition을 annotation으로 저장
-   - ✅ InputSources를 task에 복사
-   - ✅ InputTemplate을 task에 복사
-   - ✅ TaskRef를 workflow task name으로 변환
+   - ✅ Save condition to annotation
+   - ✅ Copy InputSources to task
+   - ✅ Copy InputTemplate to task
+   - ✅ Convert TaskRef to workflow task name
 
 4. **CRD Generation**
    - ✅ McallTask CRD updated
@@ -84,14 +84,14 @@ All **unit tests PASSED** ✓
 ### 🐛 Bug Fixes
 
 #### 1. HTTP Status Code Validation (2025-10-10)
-**Issue**: `executeHTTPRequest` 함수가 HTTP 상태 코드를 검증하지 않아 에러 응답도 성공으로 처리되는 문제
-- HTTP 404, 503 등 에러 응답이 Task Phase "Succeeded"로 처리됨
-- Health check workflow에서 조건부 실행이 잘못 동작
-- 예: https://us.drillquiz.com/aaa (503 Service Unavailable) → Success로 처리
+**Issue**: `executeHTTPRequest` function did not validate HTTP status codes, treating error responses as success
+- HTTP 404, 503, and other error responses were treated as Task Phase "Succeeded"
+- Conditional execution in health check workflow behaved incorrectly
+- Example: https://us.drillquiz.com/aaa (503 Service Unavailable) → Treated as success
 
 **Root Cause**: 
-- `executeHTTPRequest()` 함수에서 네트워크 요청만 성공하면 HTTP 상태 코드와 무관하게 성공 처리
-- 200-299 범위 외 응답도 `err == nil`로 반환
+- `executeHTTPRequest()` function treated any successful network request as success regardless of HTTP status code
+- Responses outside 200-299 range also returned `err == nil`
 
 **Fix** (`controller/controller.go:539-542`):
 ```go
@@ -102,25 +102,25 @@ if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 ```
 
 **Impact**:
-- ✅ Health check가 정확하게 성공/실패 판단
-- ✅ Conditional workflow 정상 동작
-- ✅ log-success/log-failure가 올바른 조건에서 실행
+- ✅ Health check accurately determines success/failure
+- ✅ Conditional workflow operates correctly
+- ✅ log-success/log-failure execute under correct conditions
 
 **Testing**:
-- ✅ Local build 성공 (`make build`)
-- ⏳ Jenkins 배포 대기 중
+- ✅ Local build successful (`make build`)
+- ⏳ Awaiting Jenkins deployment
 
 #### 2. DeepCopyInto InputSources (Fixed)
-**Issue**: DeepCopyInto 함수가 InputSources를 복사하지 않는 문제
-- ✅ 수정 완료
-- ⏳ Operator 재배포 필요
+**Issue**: DeepCopyInto function did not copy InputSources
+- ✅ Fix completed
+- ⏳ Operator redeployment required
 
 ### ⚠️ Known Issues
 
 1. **Operator Deployment**
-   - HTTP 상태 코드 검증 수정사항을 포함하여 Operator 재빌드 및 재배포 필요
-   - Jenkins CI/CD 파이프라인을 통해 자동 배포
-   - 현재 배포된 operator는 구버전이므로 통합 테스트는 재배포 후 진행 필요
+   - Operator needs to be rebuilt and redeployed with HTTP status code validation fix
+   - Automated deployment via Jenkins CI/CD pipeline
+   - Currently deployed operator is an older version, integration tests should be performed after redeployment
 
 ### 📊 Test Coverage
 

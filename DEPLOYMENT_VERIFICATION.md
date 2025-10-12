@@ -1,34 +1,34 @@
 # Deployment Verification Guide
 
-## 🚀 Jenkins 배포 후 검증 절차
+## 🚀 Post-Jenkins Deployment Verification
 
-### 1. Operator 배포 확인
+### 1. Verify Operator Deployment
 
 ```bash
-# Operator Pod 상태 확인
+# Check Operator Pod status
 kubectl get pods -n mcall-dev -l app=tz-mcall-operator-dev
 
-# Operator 로그 확인 (InputSources 처리 로그 찾기)
+# Check Operator logs (look for InputSources processing logs)
 kubectl logs -n mcall-dev deployment/tz-mcall-operator-dev --tail=50 | grep -i "input"
 ```
 
-**예상 출력**:
+**Expected output**:
 ```
 tz-mcall-operator-dev-xxxxx   1/1   Running   0   2m
 ```
 
-### 2. CRD 업데이트 확인
+### 2. Verify CRD Updates
 
 ```bash
-# CRD에 inputSources 필드가 있는지 확인
+# Check if inputSources field exists in CRD
 kubectl get crd mcalltasks.mcall.tz.io -o yaml | grep -A 10 "inputSources"
 ```
 
-**예상 출력**: inputSources, inputTemplate 스키마 정의가 표시되어야 함
+**Expected output**: Should display inputSources and inputTemplate schema definitions
 
-### 3. Task Result Passing 테스트
+### 3. Test Task Result Passing
 
-#### Step 1: 소스 Task 생성
+#### Step 1: Create Source Task
 ```bash
 kubectl apply -f - <<'EOF'
 apiVersion: mcall.tz.io/v1
@@ -43,12 +43,12 @@ spec:
 EOF
 ```
 
-#### Step 2: 완료 대기 (약 5초)
+#### Step 2: Wait for Completion (about 5 seconds)
 ```bash
 kubectl wait --for=jsonpath='{.status.phase}'=Succeeded --timeout=30s mcalltask/test-source-task -n mcall-dev
 ```
 
-#### Step 3: Consumer Task 생성
+#### Step 3: Create Consumer Task
 ```bash
 kubectl apply -f - <<'EOF'
 apiVersion: mcall.tz.io/v1
@@ -81,16 +81,16 @@ spec:
 EOF
 ```
 
-#### Step 4: 결과 확인
+#### Step 4: Verify Results
 ```bash
-# Consumer task 완료 대기
+# Wait for consumer task completion
 kubectl wait --for=jsonpath='{.status.phase}'=Succeeded --timeout=30s mcalltask/test-consumer-task -n mcall-dev
 
-# 결과 확인
+# Check results
 kubectl get mcalltask test-consumer-task -n mcall-dev -o jsonpath='{.status.result.output}'
 ```
 
-**예상 출력**:
+**Expected output**:
 ```
 === Task Result Passing Test ===
 Source output: SUCCESS_FROM_SOURCE
@@ -99,39 +99,39 @@ Source error code: 0
 =============================
 ```
 
-### 4. Conditional Execution 테스트
+### 4. Test Conditional Execution
 
 ```bash
 kubectl apply -f examples/health-monitor-workflow-with-result-passing.yaml
 ```
 
-**확인사항**:
-- healthcheck task 성공 시 → log-success task만 실행
-- healthcheck task 실패 시 → log-failure task만 실행
+**Verification points**:
+- When healthcheck task succeeds → only log-success task runs
+- When healthcheck task fails → only log-failure task runs
 
 ```bash
-# Workflow 상태 확인
+# Check workflow status
 kubectl get mcallworkflow health-monitor -n mcall-dev
 
-# Task 목록 확인
+# List tasks
 kubectl get mcalltask -n mcall-dev -l mcall.tz.io/workflow=health-monitor
 
-# 특정 task 상태 확인
+# Check specific task status
 kubectl get mcalltask health-monitor-log-success -n mcall-dev -o yaml
 kubectl get mcalltask health-monitor-log-failure -n mcall-dev -o yaml
 ```
 
-### 5. Operator 로그에서 검증
+### 5. Verify in Operator Logs
 
 ```bash
-# InputSources 처리 로그 확인
+# Check InputSources processing logs
 kubectl logs -n mcall-dev deployment/tz-mcall-operator-dev --tail=100 | grep -A 5 "Injected data from input sources"
 
-# 조건부 실행 로그 확인
+# Check conditional execution logs
 kubectl logs -n mcall-dev deployment/tz-mcall-operator-dev --tail=100 | grep -A 5 "Task condition"
 ```
 
-**예상 로그**:
+**Expected logs**:
 ```
 Injected data from input sources
   task: test-consumer-task
@@ -139,74 +139,75 @@ Injected data from input sources
   envVars: 3
 ```
 
-### 6. 정리
+### 6. Cleanup
 
 ```bash
-# 테스트 리소스 삭제
+# Delete test resources
 kubectl delete mcalltask test-source-task test-consumer-task -n mcall-dev
 kubectl delete mcallworkflow health-monitor -n mcall-dev
 ```
 
-## ✅ 성공 기준
+## ✅ Success Criteria
 
-- [ ] Operator pod가 Running 상태
-- [ ] CRD에 inputSources, inputTemplate 필드 존재
-- [ ] Test consumer task가 Succeeded 상태
-- [ ] Consumer task의 output에 소스 task의 데이터가 포함됨
-- [ ] Conditional workflow에서 조건에 맞는 task만 실행됨
-- [ ] Operator 로그에 "Injected data from input sources" 메시지 존재
+- [ ] Operator pod is in Running state
+- [ ] CRD has inputSources and inputTemplate fields
+- [ ] Test consumer task is in Succeeded state
+- [ ] Consumer task output contains source task data
+- [ ] In conditional workflow, only tasks matching conditions are executed
+- [ ] Operator logs contain "Injected data from input sources" message
 
-## 🐛 트러블슈팅
+## 🐛 Troubleshooting
 
-### Consumer Task가 Failed 상태인 경우
+### When Consumer Task is in Failed State
 
-1. **Spec에 inputSources가 없는 경우**
+1. **If spec has no inputSources**
    ```bash
    kubectl get mcalltask test-consumer-task -n mcall-dev -o yaml | grep -A 10 "spec:"
    ```
-   → CRD가 제대로 업데이트되지 않았을 수 있음
+   → CRD may not be properly updated
 
-2. **"will be overridden" 명령어가 실행된 경우**
+2. **If "will be overridden" command was executed**
    ```bash
    kubectl logs -n mcall-dev deployment/tz-mcall-operator-dev --tail=50 | grep "will be overridden"
    ```
-   → InputTemplate이 적용되지 않음. Operator 재시작 필요
+   → InputTemplate not applied. Operator restart required
 
 3. **Referenced task not completed yet**
    ```bash
    kubectl get mcalltask test-source-task -n mcall-dev -o jsonpath='{.status.phase}'
    ```
-   → 소스 task가 완료될 때까지 대기
+   → Wait for source task to complete
 
-### 해결 방법
+### Solutions
 
 ```bash
-# Operator 재시작
+# Restart operator
 kubectl rollout restart deployment/tz-mcall-operator-dev -n mcall-dev
 kubectl rollout status deployment/tz-mcall-operator-dev -n mcall-dev
 
-# CRD 재적용
+# Reapply CRDs
 kubectl apply -f helm/mcall-operator/templates/crds/
 
-# 테스트 재실행
+# Re-run tests
 kubectl delete mcalltask test-source-task test-consumer-task -n mcall-dev --ignore-not-found=true
-# (위의 테스트 단계 다시 실행)
+# (Re-run the test steps above)
 ```
 
-## 📊 추가 통합 테스트
+## 📊 Additional Integration Tests
 
 ```bash
-# 전체 테스트 케이스 실행
+# Run all test cases
 kubectl apply -f tests/test-cases/task-result-passing-test-cases.yaml
 
-# 테스트 결과 확인
+# Check test results
 kubectl get mcalltask -n mcall-dev -l test=result-passing
 ```
 
 ---
-**관련 문서**:
-- [TEST_REPORT.md](./TEST_REPORT.md) - 유닛 테스트 결과
-- [TASK_RESULT_PASSING_DESIGN.md](./docs/TASK_RESULT_PASSING_DESIGN.md) - 설계 문서
+**Related Documentation**:
+- [TEST_REPORT.md](./TEST_REPORT.md) - Unit test results
+- [TASK_RESULT_PASSING_DESIGN.md](./docs/TASK_RESULT_PASSING_DESIGN.md) - Design document
+
 
 
 

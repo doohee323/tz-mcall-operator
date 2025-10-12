@@ -6,14 +6,14 @@
 
 ## 📋 Overview
 
-McallWorkflow를 DAG (Directed Acyclic Graph) 형태로 시각화하여 workflow의 진행 상황을 직관적으로 모니터링하고 디버깅할 수 있도록 합니다.
+Visualize McallWorkflow in DAG (Directed Acyclic Graph) format to intuitively monitor workflow progress and enable debugging.
 
 ## 🎯 Goals
 
-1. **실시간 모니터링** - Workflow 실행 상태를 실시간으로 시각화
-2. **직관적 디버깅** - Task 간 의존성과 데이터 흐름을 명확히 표시
-3. **상세 정보 제공** - 각 Task의 input/output, 실행 시간, 에러 정보 표시
-4. **오픈소스 활용** - 검증된 오픈소스 라이브러리 사용
+1. **Real-time Monitoring** - Visualize workflow execution status in real-time
+2. **Intuitive Debugging** - Clearly display dependencies and data flow between tasks
+3. **Detailed Information** - Show each task's input/output, execution time, and error information
+4. **Open Source Utilization** - Use proven open source libraries
 
 ## 🏗️ Architecture
 
@@ -190,10 +190,10 @@ type DAGMetadata struct {
 
 ### Phase 1: Backend - CRD & Controller (2-3 hours)
 
-#### Step 1.1: API Types 확장
-- [ ] `api/v1/mcallworkflow_types.go`에 DAG 구조 추가
-- [ ] DeepCopy 함수 생성
-- [ ] CRD 재생성
+#### Step 1.1: Extend API Types
+- [ ] Add DAG structure to `api/v1/mcallworkflow_types.go`
+- [ ] Generate DeepCopy functions
+- [ ] Regenerate CRDs
 
 ```bash
 # Generate code
@@ -204,12 +204,12 @@ make generate-crds
 make build
 ```
 
-#### Step 1.2: Controller DAG 생성 로직
-- [ ] `controller/mcallworkflow_controller.go`에 `buildWorkflowDAG()` 함수 추가
-- [ ] Task 상태 변경 시 DAG 업데이트
-- [ ] Auto-layout 알고리즘 구현 (simple layered layout)
+#### Step 1.2: Controller DAG Generation Logic
+- [ ] Add `buildWorkflowDAG()` function to `controller/mcallworkflow_controller.go`
+- [ ] Update DAG when task state changes
+- [ ] Implement auto-layout algorithm (simple layered layout)
 
-#### Step 1.3: 로컬 테스트
+#### Step 1.3: Local Testing
 ```bash
 # Apply updated CRDs
 kubectl apply -f crds/
@@ -220,17 +220,17 @@ kubectl get mcallworkflow health-monitor -n mcall-dev -o jsonpath='{.status.dag}
 
 ### Phase 2: Backend - MCP Server API (2 hours)
 
-#### Step 2.1: REST API 엔드포인트
-- [ ] `mcp-server/src/dag-api.ts` 생성
-- [ ] GET `/api/workflows/:namespace/:name/dag` 구현
-- [ ] GET `/api/workflows/:namespace/:name` 구현 (workflow info)
+#### Step 2.1: REST API Endpoints
+- [ ] Create `mcp-server/src/dag-api.ts`
+- [ ] Implement GET `/api/workflows/:namespace/:name/dag`
+- [ ] Implement GET `/api/workflows/:namespace/:name` (workflow info)
 
-#### Step 2.2: WebSocket 실시간 업데이트
-- [ ] `mcp-server/src/dag-websocket.ts` 생성
-- [ ] Kubernetes Watch API 연동
-- [ ] WebSocket으로 클라이언트에 push
+#### Step 2.2: WebSocket Real-time Updates
+- [ ] Create `mcp-server/src/dag-websocket.ts`
+- [ ] Integrate with Kubernetes Watch API
+- [ ] Push to clients via WebSocket
 
-#### Step 2.3: 로컬 테스트
+#### Step 2.3: Local Testing
 ```bash
 cd mcp-server
 npm install
@@ -242,10 +242,10 @@ curl http://localhost:3000/api/workflows/mcall-dev/health-monitor/dag
 
 ### Phase 3: Frontend - React UI (3-4 hours)
 
-#### Step 3.1: 프로젝트 설정
-- [ ] `mcp-server/ui/` 디렉토리 생성
-- [ ] React + Vite 프로젝트 초기화
-- [ ] ReactFlow, Socket.IO 클라이언트 설치
+#### Step 3.1: Project Setup
+- [ ] Create `mcp-server/ui/` directory
+- [ ] Initialize React + Vite project
+- [ ] Install ReactFlow and Socket.IO client
 
 ```bash
 cd mcp-server
@@ -254,20 +254,20 @@ cd ui
 npm install reactflow socket.io-client @tanstack/react-query
 ```
 
-#### Step 3.2: DAG 컴포넌트 구현
-- [ ] `WorkflowDAG.tsx` - 메인 DAG 뷰
-- [ ] `CustomNode.tsx` - Task 노드 (상태별 색상)
-- [ ] `NodeDetailsPanel.tsx` - Task 상세 정보
-- [ ] `WorkflowHeader.tsx` - Workflow 정보 헤더
+#### Step 3.2: Implement DAG Components
+- [ ] `WorkflowDAG.tsx` - Main DAG view
+- [ ] `CustomNode.tsx` - Task nodes (status-based colors)
+- [ ] `NodeDetailsPanel.tsx` - Task details
+- [ ] `WorkflowHeader.tsx` - Workflow info header
 
-#### Step 3.3: 스타일링
-- [ ] Tailwind CSS 설정
-- [ ] 상태별 색상 테마
-- [ ] 반응형 레이아웃
+#### Step 3.3: Styling
+- [ ] Configure Tailwind CSS
+- [ ] Status-based color theme
+- [ ] Responsive layout
 
 ### Phase 4: Integration & Testing (2 hours)
 
-#### Step 4.1: 로컬 통합 테스트
+#### Step 4.1: Local Integration Testing
 ```bash
 # Terminal 1: Run controller locally
 cd /Users/dhong/workspaces/tz-mcall-operator
@@ -284,22 +284,22 @@ kubectl apply -f examples/health-monitor-workflow-with-result-passing.yaml
 # Browser: Open http://localhost:3000
 ```
 
-#### Step 4.2: E2E 시나리오 테스트
-- [ ] Workflow 생성 → DAG 표시 확인
-- [ ] Task 실행 → 실시간 상태 업데이트 확인
-- [ ] Task 완료 → Duration 표시 확인
-- [ ] Task 실패 → 에러 정보 표시 확인
-- [ ] Conditional edges → 조건부 실행 시각화 확인
+#### Step 4.2: E2E Scenario Testing
+- [ ] Workflow creation → Verify DAG display
+- [ ] Task execution → Verify real-time status updates
+- [ ] Task completion → Verify duration display
+- [ ] Task failure → Verify error information display
+- [ ] Conditional edges → Verify conditional execution visualization
 
 ### Phase 5: Deployment (1 hour)
 
-#### Step 5.1: Docker 이미지 빌드
-- [ ] `mcp-server/Dockerfile` 수정 (UI 포함)
-- [ ] Multi-stage build로 최적화
+#### Step 5.1: Build Docker Image
+- [ ] Modify `mcp-server/Dockerfile` (include UI)
+- [ ] Optimize with multi-stage build
 
-#### Step 5.2: Helm 차트 업데이트
-- [ ] `values-dev.yaml`에 DAG UI 설정 추가
-- [ ] Ingress 경로 추가
+#### Step 5.2: Update Helm Chart
+- [ ] Add DAG UI configuration to `values-dev.yaml`
+- [ ] Add ingress path
 
 ```yaml
 mcpServer:
@@ -441,11 +441,12 @@ mcpServer:
 
 ## 🔄 Future Enhancements
 
-- [ ] Workflow 편집 기능 (Drag & Drop)
-- [ ] Workflow 템플릿 라이브러리
-- [ ] 성능 메트릭 그래프 (실행 시간 추이)
-- [ ] 알림 설정 (Slack, Email)
-- [ ] Workflow 비교 (Diff View)
+- [ ] Workflow editing (Drag & Drop)
+- [ ] Workflow template library
+- [ ] Performance metrics graphs (execution time trends)
+- [ ] Notification settings (Slack, Email)
+- [ ] Workflow comparison (Diff View)
 - [ ] Export (PNG, SVG, PDF)
+
 
 

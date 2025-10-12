@@ -1,12 +1,12 @@
 # MCP Server API Key Authentication Guide
 
-## 개요
+## Overview
 
-MCP Server는 API Key 기반 인증을 지원하여 보안을 강화할 수 있습니다.
+MCP Server supports API Key-based authentication to enhance security.
 
-## 인증 방식
+## Authentication Methods
 
-### 1. **X-API-Key Header** (권장)
+### 1. **X-API-Key Header** (Recommended)
 
 ```bash
 curl -H "X-API-Key: your-api-key-here" https://mcp-dev.drillquiz.com/api/namespaces
@@ -18,31 +18,31 @@ curl -H "X-API-Key: your-api-key-here" https://mcp-dev.drillquiz.com/api/namespa
 curl -H "Authorization: Bearer your-api-key-here" https://mcp-dev.drillquiz.com/api/namespaces
 ```
 
-### 3. **Query Parameter** (테스트용)
+### 3. **Query Parameter** (Testing only)
 
 ```bash
 curl "https://mcp-dev.drillquiz.com/api/namespaces?apiKey=your-api-key-here"
 ```
 
-## 로컬 개발 환경
+## Local Development Environment
 
-### 인증 비활성화 (기본값)
+### Disable Authentication (Default)
 
 ```bash
 cd mcp-server
 npm start
 ```
 
-### 인증 활성화
+### Enable Authentication
 
 ```bash
 cd mcp-server
 MCP_REQUIRE_AUTH=true MCP_API_KEYS=test-key-123,admin-key-456 npm start
 ```
 
-## Claude Desktop 설정
+## Claude Desktop Configuration
 
-### Stdio Mode (로컬, 인증 불필요)
+### Stdio Mode (Local, no authentication required)
 
 ```json
 {
@@ -59,9 +59,9 @@ MCP_REQUIRE_AUTH=true MCP_API_KEYS=test-key-123,admin-key-456 npm start
 }
 ```
 
-## Cursor MCP 설정
+## Cursor MCP Configuration
 
-### 원격 서버 (SSE, 인증 필요)
+### Remote Server (SSE, authentication required)
 
 ```json
 {
@@ -77,7 +77,7 @@ MCP_REQUIRE_AUTH=true MCP_API_KEYS=test-key-123,admin-key-456 npm start
 }
 ```
 
-또는 URL에 포함:
+Or include in URL:
 
 ```json
 {
@@ -90,43 +90,43 @@ MCP_REQUIRE_AUTH=true MCP_API_KEYS=test-key-123,admin-key-456 npm start
 }
 ```
 
-## Kubernetes 배포
+## Kubernetes Deployment
 
-### Option 1: Production (권장) - Existing Secret 사용
+### Option 1: Production (Recommended) - Use Existing Secret
 
-**Step 1: Secret 생성 (Helm 배포 전)**
+**Step 1: Create Secret (Before Helm deployment)**
 
 ```bash
-# API Keys를 Kubernetes Secret으로 먼저 생성
+# Create API Keys as Kubernetes Secret first
 kubectl create secret generic mcp-api-keys \
   --from-literal=api-keys="prod-key-abc123,admin-key-xyz789" \
   -n mcall-system
 ```
 
-**Step 2: Helm 배포**
+**Step 2: Helm Deployment**
 
 ```yaml
 # values-prod.yaml
 mcpServer:
   auth:
     enabled: true
-    existingSecret: "mcp-api-keys"  # 기존 Secret 사용
-    apiKeys: ""  # 비워둠 (보안)
+    existingSecret: "mcp-api-keys"  # Use existing Secret
+    apiKeys: ""  # Leave empty (secure)
 ```
 
 ```bash
-# Helm 배포
+# Deploy with Helm
 helm upgrade --install mcall-operator ./helm/mcall-operator \
   -f helm/mcall-operator/values-prod.yaml \
   --namespace mcall-system
 ```
 
-### Option 2: Development - Helm이 Secret 관리
+### Option 2: Development - Helm Manages Secret
 
-**개발 환경에서만 사용 (Git에 커밋 금지!)**
+**Use in development only (Do NOT commit to Git!)**
 
 ```bash
-# 명령줄에서 API Key 전달
+# Pass API Key via command line
 helm upgrade --install mcall-operator ./helm/mcall-operator \
   -f helm/mcall-operator/values-dev.yaml \
   --set mcpServer.auth.enabled=true \
@@ -134,10 +134,10 @@ helm upgrade --install mcall-operator ./helm/mcall-operator \
   --namespace mcall-dev
 ```
 
-또는 별도 파일:
+Or in a separate file:
 
 ```yaml
-# values-dev-local.yaml (Git ignore 필요!)
+# values-dev-local.yaml (Must be in .gitignore!)
 mcpServer:
   auth:
     enabled: true
@@ -151,20 +151,20 @@ helm upgrade --install mcall-operator ./helm/mcall-operator \
   --namespace mcall-dev
 ```
 
-### Option 3: API Key 교체 (Zero Downtime)
+### Option 3: API Key Rotation (Zero Downtime)
 
 ```bash
-# 1. 새로운 키 추가 (기존 키 유지)
+# 1. Add new key (keep existing key)
 kubectl create secret generic mcp-api-keys \
   --from-literal=api-keys="old-key,new-key" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# 2. Pod 재시작 (새 Secret 로드)
+# 2. Restart pods (load new Secret)
 kubectl rollout restart deployment/mcall-operator-mcp-server -n mcall-system
 
-# 3. 클라이언트를 new-key로 전환
+# 3. Switch clients to new-key
 
-# 4. old-key 제거
+# 4. Remove old-key
 kubectl create secret generic mcp-api-keys \
   --from-literal=api-keys="new-key" \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -172,44 +172,44 @@ kubectl create secret generic mcp-api-keys \
 kubectl rollout restart deployment/mcall-operator-mcp-server -n mcall-system
 ```
 
-### 배포 확인
+### Verify Deployment
 
 ```bash
-# MCP Server Pod 확인
+# Check MCP Server pods
 kubectl get pods -n mcall-system -l app.kubernetes.io/component=mcp-server
 
-# 로그 확인
+# Check logs
 kubectl logs -n mcall-system -l app.kubernetes.io/component=mcp-server
-# 출력: 🔐 API Key authentication enabled with 2 key(s)
+# Output: 🔐 API Key authentication enabled with 2 key(s)
 
-# API 테스트
+# Test API
 curl -H "X-API-Key: prod-key-abc123" https://mcp-dev.drillquiz.com/api/namespaces
 ```
 
-## 환경변수
+## Environment Variables
 
-| 변수 | 설명 | 기본값 |
+| Variable | Description | Default |
 |------|------|--------|
-| `MCP_REQUIRE_AUTH` | 인증 활성화 여부 | `false` |
-| `MCP_API_KEYS` | API Keys (쉼표 구분) | - |
+| `MCP_REQUIRE_AUTH` | Enable authentication | `false` |
+| `MCP_API_KEYS` | API Keys (comma-separated) | - |
 
-## 보안 권장사항
+## Security Best Practices
 
-### ✅ DO (권장)
+### ✅ DO (Recommended)
 
-1. **Production에서는 반드시 인증 활성화**
+1. **Always enable authentication in Production**
    ```yaml
    mcpServer:
      auth:
        enabled: true
    ```
 
-2. **API Keys를 Kubernetes Secret으로 관리**
+2. **Manage API Keys as Kubernetes Secrets**
    ```bash
    kubectl create secret generic mcp-api-keys --from-literal=api-keys="..."
    ```
 
-3. **헤더 방식 사용 (X-API-Key 또는 Bearer)**
+3. **Use header method (X-API-Key or Bearer)**
    ```bash
    curl -H "X-API-Key: your-key" https://...
    ```
@@ -248,32 +248,32 @@ curl -H "X-API-Key: prod-key-abc123" https://mcp-dev.drillquiz.com/api/namespace
 
 ## 트러블슈팅
 
-### 401 Unauthorized 오류
+### 401 Unauthorized Error
 
 ```bash
-# 로그 확인
+# Check logs
 kubectl logs -n mcall-system -l app.kubernetes.io/component=mcp-server | grep "Unauthorized"
 
-# API Key 확인
+# Check API Key
 kubectl get secret mcp-api-keys -n mcall-system -o jsonpath='{.data.api-keys}' | base64 -d
 
-# 테스트
+# Test
 curl -v -H "X-API-Key: your-key" https://mcp-dev.drillquiz.com/api/namespaces
 ```
 
-### 인증 설정이 적용되지 않음
+### Authentication Settings Not Applied
 
 ```bash
-# Pod 재시작
+# Restart pods
 kubectl rollout restart deployment/mcall-operator-mcp-server -n mcall-system
 
-# 환경변수 확인
+# Check environment variables
 kubectl exec -n mcall-system deployment/mcall-operator-mcp-server -- env | grep MCP
 ```
 
-## Rate Limiting (선택사항)
+## Rate Limiting (Optional)
 
-Rate limiting을 활성화하려면 `http-server.ts`에 다음을 추가:
+To enable rate limiting, add the following to `http-server.ts`:
 
 ```typescript
 // Rate limiting: 100 requests per minute
@@ -281,9 +281,9 @@ app.use('/mcp', authService.rateLimit(100, 60000));
 app.use('/api', authService.rateLimit(1000, 60000));
 ```
 
-## 참고 자료
+## References
 
 - [MCP Server Guide](../MCP_SERVER_GUIDE.md)
-- [Kubernetes Secret 관리](https://kubernetes.io/docs/concepts/configuration/secret/)
-- [Helm Values 설정](../helm/mcall-operator/README.md)
+- [Kubernetes Secret Management](https://kubernetes.io/docs/concepts/configuration/secret/)
+- [Helm Values Configuration](../helm/mcall-operator/README.md)
 
