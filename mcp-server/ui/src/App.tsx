@@ -53,9 +53,6 @@ function App() {
                   borderRadius: '4px'
                 }}
               />
-              <small style={{ color: '#666', fontSize: '12px', marginTop: '5px', display: 'block' }}>
-                💡 API key is saved to browser localStorage automatically
-              </small>
             </div>
             <button
               onClick={() => setShowConfig(false)}
