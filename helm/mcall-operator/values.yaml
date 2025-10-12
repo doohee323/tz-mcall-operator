@@ -278,7 +278,7 @@ mcpServer:
   # Image configuration
   image:
     repository: doohee323/mcall-operator-mcp-server
-    tag: "latest"
+    tag: ""  # Will be set by Jenkins to build number
     pullPolicy: IfNotPresent
   
   # Number of replicas
