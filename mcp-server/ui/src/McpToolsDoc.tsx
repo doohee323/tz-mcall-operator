@@ -225,9 +225,6 @@ EOF`;
         <h1 style={{ margin: 0, fontSize: '24px' }}>
           📚 MCP Tools Documentation
         </h1>
-        <div style={{ fontSize: '14px', marginTop: '5px', opacity: 0.9 }}>
-          Model Context Protocol tools for AI integration (Claude Desktop, ChatGPT, etc.)
-        </div>
       </div>
 
       {/* Main Content */}
@@ -380,10 +377,10 @@ EOF`;
           {/* MCP Usage Example */}
           <div style={{ marginBottom: '30px' }}>
             <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#333' }}>
-              💬 MCP Usage (Claude Desktop, ChatGPT)
+              💬 MCP Usage Example
             </h3>
             <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
-              Example MCP tool call for AI assistants:
+              Example tool call:
             </p>
             <div style={{
               background: '#2d2d2d',
