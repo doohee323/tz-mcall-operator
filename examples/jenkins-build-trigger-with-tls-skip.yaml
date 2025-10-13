@@ -1,0 +1,28 @@
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-build-trigger-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  input: ""
+  timeout: 60
+  retryCount: 2
+  mcpConfig:
+    serverUrl: https://jenkins.drillquiz.com/mcp-server/mcp
+    toolName: triggerBuild
+    connectionTimeout: 30
+    # Skip TLS certificate verification for legacy certificates
+    insecureSkipVerify: true
+    headers:
+      Accept: "text/event-stream, application/json"
+    auth:
+      type: basic
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      usernameKey: username
+      passwordKey: token
+    arguments:
+      jobFullName: docker-test
+

@@ -303,6 +303,8 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
+    # Skip TLS certificate verification for legacy certificates
+    insecureSkipVerify: true
 
 ---
 # 6. Reference health check tasks in McallWorkflow (Extended)

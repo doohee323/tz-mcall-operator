@@ -71,6 +71,9 @@ spec:
     headers:
       X-Request-ID: "req-12345"
       X-Environment: "production"
+    
+    # Skip TLS certificate verification for legacy certificates
+    insecureSkipVerify: true
 
 ---
 # Example 4: MCP Call with Basic Authentication
