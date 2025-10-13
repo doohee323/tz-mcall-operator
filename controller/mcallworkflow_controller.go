@@ -698,6 +698,43 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 			dag.Edges = append(dag.Edges, edge)
 			dag.Metadata.TotalEdges++
 		}
+		
+		// If task has condition but no matching dependency edge, create conditional edge
+		if taskSpec.Condition != nil && taskSpec.Condition.DependentTask != "" {
+			// Check if edge for this dependency already exists
+			edgeExists := false
+			for _, dep := range taskSpec.Dependencies {
+				if dep == taskSpec.Condition.DependentTask {
+					edgeExists = true
+					break
+				}
+			}
+			
+			// Create conditional edge if not already covered by dependencies
+			if !edgeExists {
+				edge := mcallv1.DAGEdge{
+					ID:        fmt.Sprintf("%s-%s", taskSpec.Condition.DependentTask, taskSpec.Name),
+					Source:    taskSpec.Condition.DependentTask,
+					Target:    taskSpec.Name,
+					Type:      taskSpec.Condition.When,
+					Condition: taskSpec.Condition.When,
+				}
+				
+				switch taskSpec.Condition.When {
+				case "success":
+					edge.Label = "✓"
+				case "failure":
+					edge.Label = "✗"
+				case "always":
+					edge.Label = "*"
+				default:
+					edge.Label = taskSpec.Condition.When
+				}
+				
+				dag.Edges = append(dag.Edges, edge)
+				dag.Metadata.TotalEdges++
+			}
+		}
 	}
 
 	// Update workflow status

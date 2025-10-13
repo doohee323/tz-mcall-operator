@@ -163,8 +163,8 @@ spec:
     dependencies:
       - log-failure
     condition:
-      dependentTask: healthcheck
-      when: failure
+      dependentTask: log-failure
+      when: success
 
 ---
 # Jenkins MCP Credentials Secret (Required for Jenkins build trigger)
