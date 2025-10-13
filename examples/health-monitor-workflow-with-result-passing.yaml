@@ -1,7 +1,7 @@
 # Task Result Passing Example: Health Check with Conditional Logging & Jenkins Integration
 #
 # This workflow demonstrates:
-# 1. Health check of us.drillquiz.com
+# 1. Health check of us-qa.drillquiz.com
 # 2. Conditional execution based on health check result
 # 3. Task result passing via InputSources and InputTemplate
 # 4. Logging to local disk (/app/log/mcall/)
@@ -16,7 +16,7 @@ metadata:
   namespace: mcall-dev
 spec:
   type: get
-  input: https://us.drillquiz.com/aaa
+  input: https://us-qa.drillquiz.com/
   timeout: 30
   retryCount: 0
 
@@ -115,7 +115,7 @@ spec:
     inputTemplate: |
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ SUCCESS - Phase: ${HEALTH_PHASE}, ErrorCode: ${ERROR_CODE}" >> /app/log/mcall/health_monitor.log
       echo "  Started: ${START_TIME}, Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
-      echo "  us.drillquiz.com is UP" >> /app/log/mcall/health_monitor.log
+      echo "  us-qa.drillquiz.com is UP" >> /app/log/mcall/health_monitor.log
       echo "---" >> /app/log/mcall/health_monitor.log
       tail -30 /app/log/mcall/health_monitor.log
   
@@ -150,7 +150,7 @@ spec:
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ FAILED - Phase: ${HEALTH_PHASE}, ErrorCode: ${ERROR_CODE}" >> /app/log/mcall/health_monitor.log
       echo "  Started: ${START_TIME}, Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
       echo "  Error: ${ERROR_MESSAGE}" >> /app/log/mcall/health_monitor.log
-      echo "  us.drillquiz.com is DOWN" >> /app/log/mcall/health_monitor.log
+      echo "  us-qa.drillquiz.com is DOWN" >> /app/log/mcall/health_monitor.log
       echo "  🚀 Triggering Jenkins recovery build..." >> /app/log/mcall/health_monitor.log
       echo "---" >> /app/log/mcall/health_monitor.log
       tail -30 /app/log/mcall/health_monitor.log
