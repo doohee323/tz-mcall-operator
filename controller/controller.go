@@ -1617,14 +1617,14 @@ func (r *McallTaskReconciler) handleDeletion(ctx context.Context, task *mcallv1.
 
 func (r *McallTaskReconciler) checkDependencies(ctx context.Context, task *mcallv1.McallTask) (bool, error) {
 	logger := log.FromContext(ctx)
-	
+
 	// If task has a condition, dependencies are just for DAG visualization
 	// The actual execution control is via condition check
 	hasCondition := false
 	if conditionStr, exists := task.Annotations["mcall.tz.io/condition"]; exists && conditionStr != "" {
 		hasCondition = true
 	}
-	
+
 	for _, depName := range task.Spec.Dependencies {
 		var depTask mcallv1.McallTask
 		if err := r.Get(ctx, types.NamespacedName{
@@ -1633,7 +1633,7 @@ func (r *McallTaskReconciler) checkDependencies(ctx context.Context, task *mcall
 		}, &depTask); err != nil {
 			return false, err
 		}
-		
+
 		// If task has condition, allow Failed/Skipped dependencies (condition will control execution)
 		if hasCondition {
 			// Only wait for dependency to complete (any final state)
@@ -2138,7 +2138,7 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 
 	if len(resultTexts) > 0 {
 		result := strings.Join(resultTexts, "\n---\n")
-		logger.Info("MCP tool call successful", 
+		logger.Info("MCP tool call successful",
 			"contentItems", len(resultTexts),
 			"resultLength", len(result))
 		return result, nil
