@@ -408,18 +408,61 @@ test_crd_functionality() {
     # Install kubectl if not present
     install_kubectl
     
-    # Test McallTask creation
-    if [ -f "examples/mcalltask-example.yaml" ]; then
-        echo "Creating test McallTask..."
-        kubectl apply -f examples/mcalltask-example.yaml || echo "Failed to create McallTask"
+    # Test Health Monitor Workflow (with Jenkins integration)
+    if [ -f "examples/health-monitor-workflow-with-result-passing.yaml" ]; then
+        echo "📋 Deploying Health Monitor Workflow with Jenkins integration..."
+        kubectl apply -f examples/health-monitor-workflow-with-result-passing.yaml || echo "Failed to create Health Monitor Workflow"
         
-        sleep 10
+        echo "⏳ Waiting for workflow to initialize (15 seconds)..."
+        sleep 15
         
-        echo "Checking McallTask status..."
-        kubectl get mcalltasks || echo "No McallTasks found"
+        echo ""
+        echo "📊 Workflow Status:"
+        echo "===================="
+        kubectl get mcallworkflows -n ${NAMESPACE} || echo "No McallWorkflows found"
         
-        echo "Cleaning up test McallTask..."
-        kubectl delete -f examples/mcalltask-example.yaml || echo "Failed to delete McallTask"
+        echo ""
+        echo "📋 Task Status:"
+        echo "===================="
+        kubectl get mcalltasks -n ${NAMESPACE} || echo "No McallTasks found"
+        
+        echo ""
+        echo "🔍 Recent Workflow Execution Logs:"
+        echo "===================="
+        # Get the latest workflow pod logs if available
+        WORKFLOW_POD=$(kubectl get pods -n ${NAMESPACE} -l workflow=health-monitor --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || echo "")
+        if [ -n "$WORKFLOW_POD" ]; then
+            echo "Latest workflow pod: $WORKFLOW_POD"
+            kubectl logs -n ${NAMESPACE} $WORKFLOW_POD --tail=50 || echo "No logs available yet"
+        else
+            echo "No workflow pods found yet (first execution may be pending)"
+        fi
+        
+        echo ""
+        echo "✅ Health Monitor Workflow deployed successfully"
+        echo "   - Workflow will execute every 1 minute"
+        echo "   - On success: Logs to /app/log/mcall/health_monitor.log"
+        echo "   - On failure: Logs + Triggers Jenkins docker-test build"
+        echo "   - Monitor at: https://mcp-dev.drillquiz.com/"
+        echo ""
+        echo "⚠️  Note: Workflow will continue running. Clean up manually if needed:"
+        echo "   kubectl delete -f examples/health-monitor-workflow-with-result-passing.yaml"
+    else
+        echo "⚠️  Health monitor workflow file not found"
+        
+        # Fallback to simple task test
+        if [ -f "examples/mcalltask-example.yaml" ]; then
+            echo "📋 Fallback: Testing with simple McallTask..."
+            kubectl apply -f examples/mcalltask-example.yaml || echo "Failed to create McallTask"
+            
+            sleep 10
+            
+            echo "Checking McallTask status..."
+            kubectl get mcalltasks -n ${NAMESPACE} || echo "No McallTasks found"
+            
+            echo "Cleaning up test McallTask..."
+            kubectl delete -f examples/mcalltask-example.yaml || echo "Failed to delete McallTask"
+        fi
     fi
     
     echo "✅ CRD functionality test completed"

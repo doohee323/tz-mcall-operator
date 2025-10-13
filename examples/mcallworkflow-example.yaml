@@ -247,8 +247,65 @@ spec:
   environment:
     ALERT_MANAGER_URL: "http://alertmanager.monitoring.svc.cluster.local:9093"
 
-# 4. Reference health check tasks in McallWorkflow
+# 4. Success/Failure Log Tasks
 ---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: log-health-success-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo '[SUCCESS] All health checks passed at $(date)' | tee -a /var/log/health-check.log"
+  timeout: 10
+  retryCount: 1
+  environment:
+    LOG_LEVEL: "INFO"
+
+---
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: log-health-failure-task
+  namespace: mcall-system
+spec:
+  type: cmd
+  input: "echo '[FAILURE] Health check failed at $(date). Triggering recovery build...' | tee -a /var/log/health-check.log"
+  timeout: 10
+  retryCount: 1
+  environment:
+    LOG_LEVEL: "ERROR"
+
+---
+# 5. Jenkins Build Trigger Task (on failure)
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: trigger-jenkins-docker-test-task
+  namespace: mcall-system
+spec:
+  type: mcp-client
+  input: ""
+  timeout: 60
+  retryCount: 2
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "triggerBuild"
+    arguments:
+      jobFullName: "docker-test"
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-system
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+
+---
+# 6. Reference health check tasks in McallWorkflow (Extended)
 apiVersion: mcall.tz.io/v1
 kind: McallWorkflow
 metadata:
@@ -270,6 +327,7 @@ spec:
   
   # Task definitions (referencing existing McallTasks)
   tasks:
+  # Parallel health checks
   - name: "user-service-health"
     taskRef:
       name: "user-service-health-task"
@@ -288,6 +346,39 @@ spec:
       namespace: "mcall-system"
     dependencies: []
   
+  # Success path: log success if all checks pass
+  - name: "log-health-success"
+    taskRef:
+      name: "log-health-success-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "user-service-health"
+      - "order-service-health"
+      - "check-pod-counts"
+    continueOnFailure: true  # Continue even if logging fails
+  
+  # Failure path: log failure and trigger Jenkins build
+  - name: "log-health-failure"
+    taskRef:
+      name: "log-health-failure-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "user-service-health"
+      - "order-service-health"
+      - "check-pod-counts"
+    onFailureOf:  # Execute only if any dependency fails
+      - "user-service-health"
+      - "order-service-health"
+      - "check-pod-counts"
+  
+  - name: "trigger-jenkins-recovery-build"
+    taskRef:
+      name: "trigger-jenkins-docker-test-task"
+      namespace: "mcall-system"
+    dependencies:
+      - "log-health-failure"
+  
+  # Send report regardless of success/failure
   - name: "send-health-report"
     taskRef:
       name: "send-health-report-task"
@@ -296,3 +387,16 @@ spec:
       - "user-service-health"
       - "order-service-health"
       - "check-pod-counts"
+    continueOnFailure: true
+
+---
+# 7. Jenkins MCP Credentials Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: mcall-system
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"  # Replace with actual Jenkins API token

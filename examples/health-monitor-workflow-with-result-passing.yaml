@@ -1,10 +1,11 @@
-# Task Result Passing Example: Health Check with Conditional Logging
+# Task Result Passing Example: Health Check with Conditional Logging & Jenkins Integration
 #
 # This workflow demonstrates:
 # 1. Health check of us.drillquiz.com
 # 2. Conditional execution based on health check result
 # 3. Task result passing via InputSources and InputTemplate
 # 4. Logging to local disk (/app/log/mcall/)
+# 5. Triggering Jenkins recovery build on health check failure
 
 ---
 # Template Task 1: Health Check
@@ -42,6 +43,34 @@ spec:
   type: cmd
   input: "echo 'Template command - will be overridden by InputTemplate'"
   timeout: 10
+
+---
+# Template Task 4: Jenkins Build Trigger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-build-trigger-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  input: ""
+  timeout: 60
+  retryCount: 2
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "triggerBuild"
+    arguments:
+      jobFullName: "docker-test"
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
 
 ---
 # Workflow: Health Monitor with Result Passing
@@ -122,6 +151,29 @@ spec:
       echo "  Started: ${START_TIME}, Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
       echo "  Error: ${ERROR_MESSAGE}" >> /app/log/mcall/health_monitor.log
       echo "  us.drillquiz.com is DOWN" >> /app/log/mcall/health_monitor.log
+      echo "  🚀 Triggering Jenkins recovery build..." >> /app/log/mcall/health_monitor.log
       echo "---" >> /app/log/mcall/health_monitor.log
       tail -30 /app/log/mcall/health_monitor.log
+  
+  # Task 4: Trigger Jenkins Build (runs after log-failure)
+  - name: trigger-jenkins-recovery
+    taskRef:
+      name: jenkins-build-trigger-template
+      namespace: mcall-dev
+    dependencies:
+      - log-failure
+    condition:
+      dependentTask: healthcheck
+      when: failure
 
+---
+# Jenkins MCP Credentials Secret (Required for Jenkins build trigger)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: mcall-dev
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"  # Replace with actual Jenkins API token
