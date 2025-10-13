@@ -186,6 +186,10 @@ spec:
                       type: string
                     description: Additional headers for HTTP request
                     type: object
+                  insecureSkipVerify:
+                    description: Skip TLS certificate verification (use with caution,
+                      only for development/testing)
+                    type: boolean
                   serverUrl:
                     description: Server URL (can also use spec.input for backward
                       compatibility)

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -1964,8 +1965,16 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		}
 	}
 
-	// Create HTTP client with timeout
-	client := &http.Client{Timeout: timeout}
+	// Create HTTP client with timeout and TLS configuration
+	transport := &http.Transport{}
+	if config.InsecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		logger.Info("TLS certificate verification disabled for MCP client")
+	}
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
 
 	var sessionID string
 

@@ -261,6 +261,9 @@ type MCPClientConfig struct {
 
 	// Connection timeout in seconds (separate from execution timeout)
 	ConnectionTimeout int32 `json:"connectionTimeout,omitempty"`
+
+	// Skip TLS certificate verification (use with caution, only for development/testing)
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 }
 
 // MCPAuthConfig defines authentication for MCP server
