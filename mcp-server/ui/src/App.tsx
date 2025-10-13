@@ -8,7 +8,14 @@ type Page = 'dag' | 'api-tester' | 'mcp-tools';
 
 function App() {
   // Load API key from localStorage
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('mcp-api-key') || '');
+  const [apiKey, setApiKey] = useState(() => {
+    const savedKey = localStorage.getItem('mcp-api-key') || '';
+    // Set window.MCP_API_KEY immediately on load
+    if (savedKey) {
+      (window as any).MCP_API_KEY = savedKey;
+    }
+    return savedKey;
+  });
   const [currentPage, setCurrentPage] = useState<Page>('dag');
   const [showConfig, setShowConfig] = useState(!apiKey);
 
