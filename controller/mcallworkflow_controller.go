@@ -298,13 +298,13 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 
 		// Update dependencies to use workflow task names
 		task.Spec.Dependencies = r.convertDependencies(workflow.Name, taskSpec.Dependencies)
-		
+
 		// Debug: Check mcpConfig after Dependencies modification
 		if task.Spec.MCPConfig != nil {
 			log.Info("After Dependencies: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
 		} else {
 			log.Info("After Dependencies: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
-			
+
 			// CRITICAL FIX: Restore mcpConfig if it was lost
 			if preservedMCPConfig != nil {
 				task.Spec.MCPConfig = preservedMCPConfig
@@ -352,7 +352,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				log.Info("After InputSources: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
 			} else {
 				log.Info("After InputSources: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
-				
+
 				// CRITICAL FIX: Restore mcpConfig if it was lost
 				if preservedMCPConfig != nil {
 					task.Spec.MCPConfig = preservedMCPConfig
@@ -375,7 +375,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				log.Info("After InputTemplate: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
 			} else {
 				log.Info("After InputTemplate: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
-				
+
 				// CRITICAL FIX: Restore mcpConfig if it was lost
 				if preservedMCPConfig != nil {
 					task.Spec.MCPConfig = preservedMCPConfig
@@ -438,6 +438,22 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					if existingTask.Status.Phase == "Running" {
 						log.Info("Task is currently running, skipping recreation to avoid race condition", "workflow", workflow.Name, "task", taskSpec.Name, "phase", existingTask.Status.Phase)
 						continue // Skip recreation for running tasks
+					}
+
+					// CRITICAL FIX: Check if existing task is missing mcpConfig and fix it
+					if existingTask.Spec.Type == "mcp-client" && existingTask.Spec.MCPConfig == nil && task.Spec.MCPConfig != nil {
+						log.Info("CRITICAL FIX: Existing task missing mcpConfig, updating instead of recreating", "workflow", workflow.Name, "task", taskSpec.Name, "existingTask", existingTask.Name)
+						
+						// Update the existing task with mcpConfig
+						existingTask.Spec.MCPConfig = task.Spec.MCPConfig
+						
+						if updateErr := r.Update(ctx, existingTask); updateErr != nil {
+							log.Error(updateErr, "Failed to update existing task with mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name)
+							// Fall through to delete and recreate if update fails
+						} else {
+							log.Info("CRITICAL FIX: Successfully updated existing task with mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+							continue // Skip deletion and recreation
+						}
 					}
 
 					// Delete the existing task
