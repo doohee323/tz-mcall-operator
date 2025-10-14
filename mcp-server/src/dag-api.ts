@@ -95,32 +95,48 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
       }
     };
     
-    // Enhance nodes with detailed error information for better debugging
+    // Enhance nodes with detailed error information from individual McallTasks
     if (dag.nodes && dag.nodes.length > 0) {
-      dag.nodes = dag.nodes.map((node: any) => {
+      dag.nodes = await Promise.all(dag.nodes.map(async (node: any) => {
         const enhancedNode = { ...node };
         
-        // Ensure errorMessage is included if present
-        if (node.errorMessage && !enhancedNode.errorMessage) {
-          enhancedNode.errorMessage = node.errorMessage;
+        try {
+          // Get individual McallTask status for this node
+          const taskName = node.taskRef?.name || node.name;
+          if (taskName) {
+            const task = await k8sClient.getTask(taskName, namespace);
+            
+            // Add error information from the actual McallTask
+            if (task.status?.result?.errorMessage) {
+              enhancedNode.errorMessage = task.status.result.errorMessage;
+            }
+            if (task.status?.result?.errorCode) {
+              enhancedNode.errorCode = task.status.result.errorCode;
+            }
+            
+            // Also add execution details
+            if (task.status?.executionTimeMs) {
+              enhancedNode.executionTimeMs = task.status.executionTimeMs;
+            }
+            if (task.status?.output) {
+              enhancedNode.output = task.status.output;
+            }
+            
+            console.log('[DAG-API] 🔍 Enhanced node with task data:', {
+              id: node.id,
+              name: node.name,
+              phase: node.phase,
+              errorCode: enhancedNode.errorCode,
+              errorMessage: enhancedNode.errorMessage,
+              executionTimeMs: enhancedNode.executionTimeMs
+            });
+          }
+        } catch (error) {
+          console.warn('[DAG-API] ⚠️ Could not fetch task details for node:', node.name, error instanceof Error ? error.message : String(error));
         }
-        
-        // Ensure errorCode is included if present
-        if (node.errorCode && !enhancedNode.errorCode) {
-          enhancedNode.errorCode = node.errorCode;
-        }
-        
-        // Log node details for debugging
-        console.log('[DAG-API] 🔍 Node details:', {
-          id: node.id,
-          name: node.name,
-          phase: node.phase,
-          errorCode: node.errorCode,
-          errorMessage: node.errorMessage
-        });
         
         return enhancedNode;
-      });
+      }));
     }
     
     console.log('[DAG-API] ✅ Extracted DAG nodes:', dag.nodes?.length || 0, 'edges:', dag.edges?.length || 0);
