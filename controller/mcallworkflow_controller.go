@@ -275,17 +275,17 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			Spec: *referencedTask.Spec.DeepCopy(),
 		}
 
-		// Debug: Log mcpConfig presence
+		// Debug: Log mcpConfig presence before any modifications
 		if referencedTask.Spec.MCPConfig != nil {
-			log.Info("Template task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "template", taskRef.Name)
+			log.Info("Template task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "template", taskRef.Name, "serverURL", referencedTask.Spec.MCPConfig.ServerURL)
 		} else {
 			log.Info("Template task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "template", taskRef.Name, "type", referencedTask.Spec.Type)
 		}
 
 		if task.Spec.MCPConfig != nil {
-			log.Info("Created task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+			log.Info("After DeepCopy: task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
 		} else {
-			log.Info("Created task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+			log.Info("After DeepCopy: task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
 		}
 
 		// Update dependencies to use workflow task names
@@ -325,6 +325,13 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				"workflow", workflow.Name,
 				"task", taskSpec.Name,
 				"sourceCount", len(inputSources))
+			
+			// Debug: Check mcpConfig after InputSources modification
+			if task.Spec.MCPConfig != nil {
+				log.Info("After InputSources: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+			} else {
+				log.Info("After InputSources: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+			}
 		}
 
 		// Set InputTemplate if specified
@@ -335,6 +342,20 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				"workflow", workflow.Name,
 				"task", taskSpec.Name,
 				"template", taskSpec.InputTemplate)
+			
+			// Debug: Check mcpConfig after InputTemplate modification
+			if task.Spec.MCPConfig != nil {
+				log.Info("After InputTemplate: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+			} else {
+				log.Info("After InputTemplate: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+			}
+		}
+
+		// Debug: Final check before Create
+		if task.Spec.MCPConfig != nil {
+			log.Info("BEFORE Create: task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+		} else {
+			log.Info("BEFORE Create: task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
 		}
 
 		if err := r.Create(ctx, task); err != nil {
@@ -388,6 +409,13 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					}
 				}
 
+				// Debug: Check mcpConfig before recreating
+				if task.Spec.MCPConfig != nil {
+					log.Info("BEFORE Recreate: task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+				} else {
+					log.Info("BEFORE Recreate: task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+				}
+
 				// Now recreate task
 				if createErr := r.Create(ctx, task); createErr != nil {
 					log.Error(createErr, "Failed to recreate task", "workflow", workflow.Name, "task", taskSpec.Name)
@@ -401,6 +429,19 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			}
 		} else {
 			log.Info("Created task for workflow", "workflow", workflow.Name, "task", taskSpec.Name, "originalTask", taskRef.Name, "dependencies", taskSpec.Dependencies)
+			
+			// Debug: Verify mcpConfig after creation by fetching from Kubernetes
+			time.Sleep(100 * time.Millisecond) // Small delay to ensure resource is created
+			var createdTask mcallv1.McallTask
+			if getErr := r.Get(ctx, types.NamespacedName{Name: task.Name, Namespace: task.Namespace}, &createdTask); getErr == nil {
+				if createdTask.Spec.MCPConfig != nil {
+					log.Info("Kubernetes task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", createdTask.Spec.MCPConfig.ServerURL)
+				} else {
+					log.Info("Kubernetes task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", createdTask.Spec.Type)
+				}
+			} else {
+				log.Info("Could not fetch created task for verification", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "error", getErr.Error())
+			}
 		}
 	}
 
