@@ -288,8 +288,29 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			log.Info("After DeepCopy: task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
 		}
 
+		// CRITICAL FIX: Ensure mcpConfig is preserved before any modifications
+		var preservedMCPConfig *mcallv1.MCPClientConfig
+		if task.Spec.MCPConfig != nil {
+			// Deep copy the mcpConfig to preserve it
+			preservedMCPConfig = task.Spec.MCPConfig.DeepCopy()
+			log.Info("PRESERVING mcpConfig before modifications", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", preservedMCPConfig.ServerURL)
+		}
+
 		// Update dependencies to use workflow task names
 		task.Spec.Dependencies = r.convertDependencies(workflow.Name, taskSpec.Dependencies)
+		
+		// Debug: Check mcpConfig after Dependencies modification
+		if task.Spec.MCPConfig != nil {
+			log.Info("After Dependencies: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+		} else {
+			log.Info("After Dependencies: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+			
+			// CRITICAL FIX: Restore mcpConfig if it was lost
+			if preservedMCPConfig != nil {
+				task.Spec.MCPConfig = preservedMCPConfig
+				log.Info("RESTORED mcpConfig after Dependencies modification", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+			}
+		}
 
 		// Set Condition annotation if specified
 		if taskSpec.Condition != nil {
@@ -331,6 +352,12 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				log.Info("After InputSources: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
 			} else {
 				log.Info("After InputSources: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+				
+				// CRITICAL FIX: Restore mcpConfig if it was lost
+				if preservedMCPConfig != nil {
+					task.Spec.MCPConfig = preservedMCPConfig
+					log.Info("RESTORED mcpConfig after InputSources modification", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+				}
 			}
 		}
 
@@ -348,19 +375,31 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				log.Info("After InputTemplate: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
 			} else {
 				log.Info("After InputTemplate: task lost mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+				
+				// CRITICAL FIX: Restore mcpConfig if it was lost
+				if preservedMCPConfig != nil {
+					task.Spec.MCPConfig = preservedMCPConfig
+					log.Info("RESTORED mcpConfig after InputTemplate modification", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+				}
 			}
+		}
+
+		// CRITICAL FIX: Final mcpConfig validation and restoration
+		if preservedMCPConfig != nil && task.Spec.MCPConfig == nil {
+			task.Spec.MCPConfig = preservedMCPConfig
+			log.Info("FINAL RESTORATION: mcpConfig restored before Create", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
 		}
 
 		// Debug: Final check before Create - Step 1: Detailed task object inspection
 		log.Info("=== STEP 1: TASK OBJECT INSPECTION BEFORE CREATE ===", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
-		
+
 		if task.Spec.MCPConfig != nil {
 			log.Info("STEP 1.1: task.Spec.MCPConfig is NOT nil", "workflow", workflow.Name, "task", taskSpec.Name, "serverURL", task.Spec.MCPConfig.ServerURL, "toolName", task.Spec.MCPConfig.ToolName)
-			
+
 			// Detailed mcpConfig inspection
 			mcpConfigJSON, _ := json.Marshal(task.Spec.MCPConfig)
 			log.Info("STEP 1.2: mcpConfig JSON content", "workflow", workflow.Name, "task", taskSpec.Name, "mcpConfigJSON", string(mcpConfigJSON))
-			
+
 			// Check each field individually
 			log.Info("STEP 1.3: mcpConfig field details", "workflow", workflow.Name, "task", taskSpec.Name,
 				"serverURL", task.Spec.MCPConfig.ServerURL,
@@ -436,17 +475,30 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					}
 				}
 
+				// CRITICAL FIX: Ensure mcpConfig is preserved before recreation
+				var preservedMCPConfigForRecreation *mcallv1.MCPClientConfig
+				if task.Spec.MCPConfig != nil {
+					preservedMCPConfigForRecreation = task.Spec.MCPConfig.DeepCopy()
+					log.Info("PRESERVING mcpConfig before recreation", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", preservedMCPConfigForRecreation.ServerURL)
+				}
+
 				// Debug: Check mcpConfig before recreating - Step 3: Recreation inspection
 				log.Info("=== STEP 3: TASK RECREATION INSPECTION ===", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
-				
+
 				if task.Spec.MCPConfig != nil {
 					log.Info("STEP 3.1: BEFORE Recreate - task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL, "toolName", task.Spec.MCPConfig.ToolName)
-					
+
 					// Detailed mcpConfig inspection for recreation
 					mcpConfigJSON, _ := json.Marshal(task.Spec.MCPConfig)
 					log.Info("STEP 3.2: BEFORE Recreate - mcpConfig JSON content", "workflow", workflow.Name, "task", taskSpec.Name, "mcpConfigJSON", string(mcpConfigJSON))
 				} else {
 					log.Info("STEP 3.1: BEFORE Recreate - task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+				}
+
+				// CRITICAL FIX: Final mcpConfig validation before recreation
+				if preservedMCPConfigForRecreation != nil && task.Spec.MCPConfig == nil {
+					task.Spec.MCPConfig = preservedMCPConfigForRecreation
+					log.Info("FINAL RESTORATION BEFORE RECREATION: mcpConfig restored", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
 				}
 
 				log.Info("=== STEP 4: CALLING r.Create(ctx, task) FOR RECREATION ===", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
@@ -467,24 +519,24 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 
 			// Debug: Verify mcpConfig after creation by fetching from Kubernetes - Step 5: Post-creation verification
 			log.Info("=== STEP 5: POST-CREATION KUBERNETES VERIFICATION ===", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
-			
+
 			time.Sleep(200 * time.Millisecond) // Increased delay to ensure resource is fully created
 			var createdTask mcallv1.McallTask
 			if getErr := r.Get(ctx, types.NamespacedName{Name: task.Name, Namespace: task.Namespace}, &createdTask); getErr == nil {
 				log.Info("STEP 5.1: Successfully fetched created task from Kubernetes", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
-				
+
 				if createdTask.Spec.MCPConfig != nil {
 					log.Info("STEP 5.2: ✅ Kubernetes task HAS mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", createdTask.Spec.MCPConfig.ServerURL, "toolName", createdTask.Spec.MCPConfig.ToolName)
-					
+
 					// Detailed comparison between sent and received mcpConfig
 					createdMCPConfigJSON, _ := json.Marshal(createdTask.Spec.MCPConfig)
 					log.Info("STEP 5.3: Created task mcpConfig JSON", "workflow", workflow.Name, "task", taskSpec.Name, "createdMCPConfigJSON", string(createdMCPConfigJSON))
-					
+
 					// Compare with original task spec
 					if task.Spec.MCPConfig != nil {
 						originalMCPConfigJSON, _ := json.Marshal(task.Spec.MCPConfig)
 						log.Info("STEP 5.4: Original task mcpConfig JSON for comparison", "workflow", workflow.Name, "task", taskSpec.Name, "originalMCPConfigJSON", string(originalMCPConfigJSON))
-						
+
 						if string(originalMCPConfigJSON) == string(createdMCPConfigJSON) {
 							log.Info("STEP 5.5: ✅ mcpConfig MATCHES between original and created task", "workflow", workflow.Name, "task", taskSpec.Name)
 						} else {
@@ -493,7 +545,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					}
 				} else {
 					log.Info("STEP 5.2: ❌ Kubernetes task MISSING mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", createdTask.Spec.Type)
-					
+
 					// Show what was actually stored in Kubernetes
 					createdTaskSpecJSON, _ := json.Marshal(createdTask.Spec)
 					log.Info("STEP 5.3: Created task complete spec JSON", "workflow", workflow.Name, "task", taskSpec.Name, "createdTaskSpecJSON", string(createdTaskSpecJSON))
@@ -527,7 +579,7 @@ func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workf
 	tasksToDelete := []string{}
 	for i, task := range tasks.Items {
 		log.Info("WORKFLOW DELETION: Processing task", "workflow", workflow.Name, "taskIndex", i+1, "taskName", task.Name, "taskType", task.Spec.Type)
-		
+
 		// Skip template tasks (they have -template suffix)
 		if strings.HasSuffix(task.Name, "-template") {
 			log.Info("WORKFLOW DELETION: Skipping template task", "workflow", workflow.Name, "task", task.Name)
@@ -535,8 +587,8 @@ func (r *McallWorkflowReconciler) deleteWorkflowTasks(ctx context.Context, workf
 		}
 
 		// Check task status before deletion
-		log.Info("WORKFLOW DELETION: Task status before deletion", "workflow", workflow.Name, "task", task.Name, 
-			"phase", task.Status.Phase, 
+		log.Info("WORKFLOW DELETION: Task status before deletion", "workflow", workflow.Name, "task", task.Name,
+			"phase", task.Status.Phase,
 			"hasFinalizer", len(task.Finalizers) > 0,
 			"deletionTimestamp", task.DeletionTimestamp != nil)
 
