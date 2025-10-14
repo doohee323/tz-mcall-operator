@@ -385,9 +385,36 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 		}
 
 		// CRITICAL FIX: Final mcpConfig validation and restoration
-		if preservedMCPConfig != nil && task.Spec.MCPConfig == nil {
-			task.Spec.MCPConfig = preservedMCPConfig
-			log.Info("FINAL RESTORATION: mcpConfig restored before Create", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+		if task.Spec.Type == "mcp-client" {
+			if task.Spec.MCPConfig == nil && preservedMCPConfig != nil {
+				task.Spec.MCPConfig = preservedMCPConfig
+				log.Info("FINAL RESTORATION: mcpConfig restored before Create", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+			} else if task.Spec.MCPConfig != nil {
+				log.Info("FINAL VALIDATION: mcpConfig is present before Create", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+			} else {
+				log.Error(nil, "CRITICAL ERROR: mcp-client task has no mcpConfig before Create", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+				return fmt.Errorf("mcp-client task %s has no mcpConfig before Create", task.Name)
+			}
+		}
+
+		// ULTIMATE FIX: Force mcpConfig from template if missing for mcp-client tasks
+		if task.Spec.Type == "mcp-client" && task.Spec.MCPConfig == nil {
+			log.Error(nil, "ULTIMATE FIX: mcp-client task missing mcpConfig, attempting to get from template", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+			
+			// Try to get mcpConfig from the template task again
+			var templateTask mcallv1.McallTask
+			if templateErr := r.Get(ctx, types.NamespacedName{Name: taskRef.Name, Namespace: taskRef.Namespace}, &templateTask); templateErr == nil {
+				if templateTask.Spec.MCPConfig != nil {
+					task.Spec.MCPConfig = templateTask.Spec.MCPConfig.DeepCopy()
+					log.Info("ULTIMATE FIX: Successfully copied mcpConfig from template", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL)
+				} else {
+					log.Error(nil, "ULTIMATE FIX FAILED: Template task also missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "template", taskRef.Name)
+					return fmt.Errorf("template task %s is missing mcpConfig for mcp-client task %s", taskRef.Name, task.Name)
+				}
+			} else {
+				log.Error(templateErr, "ULTIMATE FIX FAILED: Could not fetch template task", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "template", taskRef.Name)
+				return fmt.Errorf("could not fetch template task %s for mcp-client task %s", taskRef.Name, task.Name)
+			}
 		}
 
 		// Debug: Final check before Create - Step 1: Detailed task object inspection
@@ -443,10 +470,10 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					// CRITICAL FIX: Check if existing task is missing mcpConfig and fix it
 					if existingTask.Spec.Type == "mcp-client" && existingTask.Spec.MCPConfig == nil && task.Spec.MCPConfig != nil {
 						log.Info("CRITICAL FIX: Existing task missing mcpConfig, updating instead of recreating", "workflow", workflow.Name, "task", taskSpec.Name, "existingTask", existingTask.Name)
-						
+
 						// Update the existing task with mcpConfig
 						existingTask.Spec.MCPConfig = task.Spec.MCPConfig
-						
+
 						if updateErr := r.Update(ctx, existingTask); updateErr != nil {
 							log.Error(updateErr, "Failed to update existing task with mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name)
 							// Fall through to delete and recreate if update fails
