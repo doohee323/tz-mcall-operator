@@ -71,7 +71,7 @@ func (cs *CronScheduler) ShouldRun(ctx context.Context, workflow *mcallv1.McallW
 
 	// Check if this is the first run
 	if workflow.Status.LastRunTime == nil {
-		log.Info("First run of scheduled workflow", "workflow", workflow.Name)
+		log.Info("First run of scheduled workflow", "workflow", workflow.Name, "schedule", workflow.Spec.Schedule)
 		return true, nil
 	}
 
@@ -97,6 +97,28 @@ func (cs *CronScheduler) ShouldRun(ctx context.Context, workflow *mcallv1.McallW
 func (cs *CronScheduler) calculateNextRun(cron *CronExpression, lastRun time.Time) (time.Time, error) {
 	now := time.Now()
 
+	// For step expressions like "*/30", calculate based on the step interval
+	if strings.HasPrefix(cron.Minute, "*/") {
+		step, err := strconv.Atoi(cron.Minute[2:])
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid step value in minute field: %s", cron.Minute)
+		}
+
+		// Calculate next run based on step interval from last run
+		nextRun := lastRun.Add(time.Duration(step) * time.Minute)
+
+		// If the calculated time is in the past, find the next valid time
+		if nextRun.Before(now) || nextRun.Equal(now) {
+			// Find the next valid time that matches the step interval
+			minutesSinceLastRun := int(now.Sub(lastRun).Minutes())
+			stepsSinceLastRun := minutesSinceLastRun / step
+			nextRun = lastRun.Add(time.Duration((stepsSinceLastRun+1)*step) * time.Minute)
+		}
+
+		return nextRun, nil
+	}
+
+	// For other cron expressions, use the original logic
 	// Start from the last run time or now, whichever is later
 	start := lastRun
 	if now.After(lastRun) {

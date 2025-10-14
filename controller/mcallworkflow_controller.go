@@ -93,6 +93,12 @@ func (r *McallWorkflowReconciler) handleWorkflowPending(ctx context.Context, wor
 	// Update status to Running
 	workflow.Status.Phase = mcallv1.McallWorkflowPhaseRunning
 	workflow.Status.StartTime = &metav1.Time{Time: time.Now()}
+
+	// For scheduled workflows, update LastRunTime when starting execution
+	if workflow.Spec.Schedule != "" {
+		workflow.Status.LastRunTime = &metav1.Time{Time: time.Now()}
+	}
+
 	if err := r.Status().Update(ctx, workflow); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -214,6 +220,7 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 			latest.Status.Phase = mcallv1.McallWorkflowPhasePending
 			latest.Status.StartTime = nil
 			latest.Status.CompletionTime = nil
+			// Keep LastRunTime for proper scheduling - don't clear it
 			// latest.Status.DAG = nil // Don't clear DAG - keep last run data for UI
 
 			return r.Status().Update(ctx, latest)
@@ -400,7 +407,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 		// ULTIMATE FIX: Force mcpConfig from template if missing for mcp-client tasks
 		if task.Spec.Type == "mcp-client" && task.Spec.MCPConfig == nil {
 			log.Error(nil, "ULTIMATE FIX: mcp-client task missing mcpConfig, attempting to get from template", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
-			
+
 			// Try to get mcpConfig from the template task again
 			var templateTask mcallv1.McallTask
 			if templateErr := r.Get(ctx, types.NamespacedName{Name: taskRef.Name, Namespace: taskRef.Namespace}, &templateTask); templateErr == nil {
