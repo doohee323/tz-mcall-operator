@@ -2114,7 +2114,7 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		}
 		
 		if sessionID == "" {
-			logger.Warn("No session ID found in initialize response", "headers", initHeaders, "body", string(initBody))
+			logger.Info("No session ID found in initialize response", "headers", initHeaders, "body", string(initBody))
 		}
 	}
 
