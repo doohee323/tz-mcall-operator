@@ -29,8 +29,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 2. 특정 Job 상세 정보 조회
 apiVersion: mcall.tz.io/v1
@@ -57,8 +55,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 3. 특정 빌드 정보 조회
 apiVersion: mcall.tz.io/v1
@@ -86,8 +82,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 4. 빌드 로그 조회
 apiVersion: mcall.tz.io/v1
@@ -117,8 +111,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 5. 빌드 트리거 (파라미터 없음)
 apiVersion: mcall.tz.io/v1
@@ -145,8 +137,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 6. 파라미터화된 빌드 트리거
 apiVersion: mcall.tz.io/v1
@@ -177,8 +167,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 7. Jenkins 상태 체크
 apiVersion: mcall.tz.io/v1
@@ -204,8 +192,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 8. 현재 사용자 정보 조회
 apiVersion: mcall.tz.io/v1
@@ -231,8 +217,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # Shared Secret
 apiVersion: v1

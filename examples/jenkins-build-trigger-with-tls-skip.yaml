@@ -12,8 +12,6 @@ spec:
     serverUrl: https://jenkins.drillquiz.com/mcp-server/mcp
     toolName: triggerBuild
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
     headers:
       Accept: "text/event-stream, application/json"
     auth:

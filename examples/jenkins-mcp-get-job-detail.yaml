@@ -24,8 +24,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 # 특정 빌드의 로그 조회
 apiVersion: mcall.tz.io/v1
@@ -55,8 +53,6 @@ spec:
     headers:
       Accept: "text/event-stream, application/json"
     connectionTimeout: 30
-    # Skip TLS certificate verification for legacy certificates
-    insecureSkipVerify: true
 ---
 apiVersion: v1
 kind: Secret
