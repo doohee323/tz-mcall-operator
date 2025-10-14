@@ -325,7 +325,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				"workflow", workflow.Name,
 				"task", taskSpec.Name,
 				"sourceCount", len(inputSources))
-			
+
 			// Debug: Check mcpConfig after InputSources modification
 			if task.Spec.MCPConfig != nil {
 				log.Info("After InputSources: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
@@ -342,7 +342,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 				"workflow", workflow.Name,
 				"task", taskSpec.Name,
 				"template", taskSpec.InputTemplate)
-			
+
 			// Debug: Check mcpConfig after InputTemplate modification
 			if task.Spec.MCPConfig != nil {
 				log.Info("After InputTemplate: task still has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
@@ -360,8 +360,8 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 
 		if err := r.Create(ctx, task); err != nil {
 			if apierrors.IsAlreadyExists(err) {
-				// Task already exists, delete and recreate with updated specs
-				log.Info("Task already exists, deleting and recreating", "workflow", workflow.Name, "task", taskSpec.Name)
+				// Task already exists, check if it's running before recreating
+				log.Info("Task already exists, checking if recreation is needed", "workflow", workflow.Name, "task", taskSpec.Name)
 
 				existingTask := &mcallv1.McallTask{}
 				if getErr := r.Get(ctx, types.NamespacedName{Name: task.Name, Namespace: task.Namespace}, existingTask); getErr != nil {
@@ -374,6 +374,12 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 					log.Info("Task is already being deleted, waiting for deletion to complete", "workflow", workflow.Name, "task", taskSpec.Name)
 					// Don't delete again, just wait for it to be removed
 				} else {
+					// Check if task is currently running
+					if existingTask.Status.Phase == "Running" {
+						log.Info("Task is currently running, skipping recreation to avoid race condition", "workflow", workflow.Name, "task", taskSpec.Name, "phase", existingTask.Status.Phase)
+						continue // Skip recreation for running tasks
+					}
+
 					// Delete the existing task
 					if delErr := r.Delete(ctx, existingTask); delErr != nil && !apierrors.IsNotFound(delErr) {
 						log.Error(delErr, "Failed to delete existing task", "workflow", workflow.Name, "task", taskSpec.Name)
@@ -429,7 +435,7 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			}
 		} else {
 			log.Info("Created task for workflow", "workflow", workflow.Name, "task", taskSpec.Name, "originalTask", taskRef.Name, "dependencies", taskSpec.Dependencies)
-			
+
 			// Debug: Verify mcpConfig after creation by fetching from Kubernetes
 			time.Sleep(100 * time.Millisecond) // Small delay to ensure resource is created
 			var createdTask mcallv1.McallTask
