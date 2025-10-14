@@ -4,8 +4,8 @@ metadata:
   name: jenkins-build-trigger-template
   namespace: mcall-dev
 spec:
-  type: mcp-client
   input: ""
+  type: mcp-client
   timeout: 60
   retryCount: 2
   mcpConfig:
