@@ -275,6 +275,19 @@ func (r *McallWorkflowReconciler) createWorkflowTasks(ctx context.Context, workf
 			Spec: *referencedTask.Spec.DeepCopy(),
 		}
 
+		// Debug: Log mcpConfig presence
+		if referencedTask.Spec.MCPConfig != nil {
+			log.Info("Template task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "template", taskRef.Name)
+		} else {
+			log.Info("Template task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "template", taskRef.Name, "type", referencedTask.Spec.Type)
+		}
+
+		if task.Spec.MCPConfig != nil {
+			log.Info("Created task has mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name)
+		} else {
+			log.Info("Created task missing mcpConfig", "workflow", workflow.Name, "task", taskSpec.Name, "createdTask", task.Name, "type", task.Spec.Type)
+		}
+
 		// Update dependencies to use workflow task names
 		task.Spec.Dependencies = r.convertDependencies(workflow.Name, taskSpec.Dependencies)
 
