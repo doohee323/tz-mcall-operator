@@ -2016,13 +2016,52 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		}
 		defer resp.Body.Close()
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response: %w", err)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Handle Server-Sent Events (SSE) format for Jenkins MCP server
+	if strings.HasPrefix(string(body), "id:") || strings.Contains(string(body), "event: message") {
+		// Extract JSON data from SSE format
+		lines := strings.Split(string(body), "\n")
+		var jsonData string
+		for _, line := range lines {
+			if strings.HasPrefix(line, "data: ") {
+				jsonData = strings.TrimPrefix(line, "data: ")
+				break
+			}
 		}
+		if jsonData != "" {
+			body = []byte(jsonData)
+			logger.Info("Extracted JSON from SSE response", "jsonData", jsonData)
+		}
+	}
 
 		if resp.StatusCode >= 400 {
-			return body, resp.Header, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+			// Try to extract more detailed error information
+			var errorDetail string
+			if len(body) > 0 {
+				// Try to parse as JSON to get structured error
+				var jsonError struct {
+					Message string `json:"message"`
+					Error   struct {
+						Code    int    `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				if err := json.Unmarshal(body, &jsonError); err == nil {
+					if jsonError.Error.Message != "" {
+						errorDetail = fmt.Sprintf(" - %s", jsonError.Error.Message)
+					} else if jsonError.Message != "" {
+						errorDetail = fmt.Sprintf(" - %s", jsonError.Message)
+					}
+				}
+				if errorDetail == "" {
+					errorDetail = fmt.Sprintf(" - %s", string(body))
+				}
+			}
+			return body, resp.Header, fmt.Errorf("HTTP %d%s", resp.StatusCode, errorDetail)
 		}
 
 		return body, resp.Header, nil
@@ -2052,10 +2091,31 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		return "", fmt.Errorf("initialize failed: %w", err)
 	}
 
-	// Extract session ID from response header
+	// Extract session ID from response header or response body
 	if sid := initHeaders.Get("mcp-session-id"); sid != "" {
 		sessionID = sid
-		logger.Info("Session ID extracted", "sessionId", sessionID)
+		logger.Info("Session ID extracted from header", "sessionId", sessionID)
+	} else {
+		// Try to extract session ID from response body
+		var initResponse struct {
+			SessionID string `json:"sessionId"`
+			Result    struct {
+				SessionID string `json:"sessionId"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(initBody, &initResponse); err == nil {
+			if initResponse.SessionID != "" {
+				sessionID = initResponse.SessionID
+				logger.Info("Session ID extracted from response body", "sessionId", sessionID)
+			} else if initResponse.Result.SessionID != "" {
+				sessionID = initResponse.Result.SessionID
+				logger.Info("Session ID extracted from result", "sessionId", sessionID)
+			}
+		}
+		
+		if sessionID == "" {
+			logger.Warn("No session ID found in initialize response", "headers", initHeaders, "body", string(initBody))
+		}
 	}
 
 	logger.Info("MCP initialize completed", "responseLength", len(initBody))
@@ -2097,7 +2157,33 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 
 	toolBody, _, err := sendMCPRequest(toolRequest)
 	if err != nil {
-		return "", fmt.Errorf("tools/call failed: %w", err)
+		// Extract more detailed error information for better debugging
+		errorMsg := fmt.Sprintf("tools/call failed: %w", err)
+		
+		// Try to parse response body for additional context
+		if len(toolBody) > 0 {
+			var errorResponse struct {
+				Message string `json:"message"`
+				Error   struct {
+					Code    int    `json:"code"`
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(toolBody, &errorResponse) == nil {
+				if errorResponse.Error.Message != "" {
+					errorMsg += fmt.Sprintf(" | MCP Error: %s", errorResponse.Error.Message)
+				} else if errorResponse.Message != "" {
+					errorMsg += fmt.Sprintf(" | Response: %s", errorResponse.Message)
+				}
+			}
+		}
+		
+		logger.Error(fmt.Errorf(errorMsg), "MCP tool call failed",
+			"toolName", config.ToolName,
+			"serverUrl", serverURL,
+			"sessionId", sessionID)
+		
+		return "", fmt.Errorf(errorMsg)
 	}
 
 	// Parse and extract result
@@ -2126,6 +2212,14 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 		if mcpResponse.Error.Data != "" {
 			errorMsg += fmt.Sprintf(" - %s", mcpResponse.Error.Data)
 		}
+		
+		logger.Error(fmt.Errorf(errorMsg), "MCP tool returned error",
+			"toolName", config.ToolName,
+			"errorCode", mcpResponse.Error.Code,
+			"errorMessage", mcpResponse.Error.Message,
+			"errorData", mcpResponse.Error.Data,
+			"serverUrl", serverURL)
+		
 		return "", fmt.Errorf(errorMsg)
 	}
 
