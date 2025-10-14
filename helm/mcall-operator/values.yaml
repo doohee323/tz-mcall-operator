@@ -203,11 +203,15 @@ logging:
   # Specifies whether logging is enabled
   enabled: true
   
-  # Backend type: "postgres", "mysql", "elasticsearch", "kafka"
+  # Backend type: "postgres", "mysql", "elasticsearch", "kafka", "none"
+  # Set to "none" to disable database logging entirely
+  # When set to "none", logs will only be written to stdout/stderr
   backend: "postgres"
   
   # PostgreSQL configuration
   postgresql:
+    # Enable/disable PostgreSQL logging backend
+    # When disabled, logs will only be written to stdout/stderr
     enabled: true
     host: "devops-postgres-postgresql.devops.svc.cluster.local"
     port: 5432
@@ -224,6 +228,8 @@ logging:
   
   # MySQL configuration
   mysql:
+    # Enable/disable MySQL logging backend
+    # When disabled, logs will only be written to stdout/stderr
     enabled: false
     host: "localhost"
     port: 3306
@@ -239,6 +245,8 @@ logging:
   
   # Elasticsearch configuration
   elasticsearch:
+    # Enable/disable Elasticsearch logging backend
+    # When disabled, logs will only be written to stdout/stderr
     enabled: false
     url: "http://localhost:9200"
     index: "mcall-logs"
@@ -247,6 +255,8 @@ logging:
   
   # Kafka configuration
   kafka:
+    # Enable/disable Kafka logging backend
+    # When disabled, logs will only be written to stdout/stderr
     enabled: false
     brokers: ["localhost:9092"]
     topic: "mcall-logs"
