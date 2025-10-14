@@ -854,6 +854,14 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                           </td>
                         </tr>
                       )}
+                      {selectedTask.status.result.errorMessage && (
+                        <tr style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '8px', fontWeight: 'bold', width: '150px' }}>Error Message:</td>
+                          <td style={{ padding: '8px', color: '#f44336', fontWeight: 'bold' }}>
+                            {selectedTask.status.result.errorMessage}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                   {selectedTask.status.result.output && (
