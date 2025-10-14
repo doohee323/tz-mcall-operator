@@ -95,6 +95,34 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
       }
     };
     
+    // Enhance nodes with detailed error information for better debugging
+    if (dag.nodes && dag.nodes.length > 0) {
+      dag.nodes = dag.nodes.map((node: any) => {
+        const enhancedNode = { ...node };
+        
+        // Ensure errorMessage is included if present
+        if (node.errorMessage && !enhancedNode.errorMessage) {
+          enhancedNode.errorMessage = node.errorMessage;
+        }
+        
+        // Ensure errorCode is included if present
+        if (node.errorCode && !enhancedNode.errorCode) {
+          enhancedNode.errorCode = node.errorCode;
+        }
+        
+        // Log node details for debugging
+        console.log('[DAG-API] 🔍 Node details:', {
+          id: node.id,
+          name: node.name,
+          phase: node.phase,
+          errorCode: node.errorCode,
+          errorMessage: node.errorMessage
+        });
+        
+        return enhancedNode;
+      });
+    }
+    
     console.log('[DAG-API] ✅ Extracted DAG nodes:', dag.nodes?.length || 0, 'edges:', dag.edges?.length || 0);
     
     // Build response with workflow info and DAG
