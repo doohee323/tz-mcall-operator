@@ -1910,6 +1910,13 @@ func (r *McallTaskReconciler) getSecret(ctx context.Context, name, namespace, de
 func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv1.McallTask, timeout time.Duration) (string, error) {
 	logger := log.FromContext(ctx)
 
+	// Debug: Log mcpConfig status
+	if task.Spec.MCPConfig != nil {
+		logger.Info("McallTask has mcpConfig", "task", task.Name, "serverURL", task.Spec.MCPConfig.ServerURL, "toolName", task.Spec.MCPConfig.ToolName)
+	} else {
+		logger.Info("McallTask missing mcpConfig", "task", task.Name, "type", task.Spec.Type)
+	}
+
 	if task.Spec.MCPConfig == nil {
 		return "", fmt.Errorf("mcpConfig is required for mcp-client type")
 	}
