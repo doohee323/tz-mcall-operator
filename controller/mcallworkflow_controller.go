@@ -75,8 +75,8 @@ func (r *McallWorkflowReconciler) handleWorkflowPending(ctx context.Context, wor
 
 	// CRITICAL FIX: Double-check phase before proceeding
 	if workflow.Status.Phase != mcallv1.McallWorkflowPhasePending {
-		log.Info("Workflow phase changed, aborting pending handling", 
-			"workflow", workflow.Name, 
+		log.Info("Workflow phase changed, aborting pending handling",
+			"workflow", workflow.Name,
 			"expectedPhase", mcallv1.McallWorkflowPhasePending,
 			"actualPhase", workflow.Status.Phase)
 		return ctrl.Result{}, nil
@@ -256,16 +256,16 @@ func (r *McallWorkflowReconciler) handleWorkflowCompleted(ctx context.Context, w
 
 func (r *McallWorkflowReconciler) shouldRunScheduledWorkflow(ctx context.Context, workflow *mcallv1.McallWorkflow) (bool, error) {
 	log := log.FromContext(ctx)
-	
+
 	// CRITICAL FIX: Don't allow new execution if workflow is already running
 	if workflow.Status.Phase == mcallv1.McallWorkflowPhaseRunning {
-		log.Info("Workflow is already running, skipping new execution", 
-			"workflow", workflow.Name, 
+		log.Info("Workflow is already running, skipping new execution",
+			"workflow", workflow.Name,
 			"phase", workflow.Status.Phase,
 			"startTime", workflow.Status.StartTime)
 		return false, nil
 	}
-	
+
 	scheduler := NewCronScheduler(r.Client)
 	return scheduler.ShouldRun(ctx, workflow)
 }
