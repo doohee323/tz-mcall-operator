@@ -13,10 +13,27 @@ export class AuthService {
 
   constructor() {
     const apiKeysEnv = process.env.MCP_API_KEYS || '';
-    const apiKeys = apiKeysEnv
-      .split(',')
-      .map(key => key.trim())
-      .filter(key => key.length > 0);
+    let apiKeys: string[] = [];
+    
+    try {
+      // Try to parse as JSON array first
+      if (apiKeysEnv.startsWith('[')) {
+        apiKeys = JSON.parse(apiKeysEnv);
+      } else {
+        // Fallback to comma-separated values
+        apiKeys = apiKeysEnv
+          .split(',')
+          .map(key => key.trim())
+          .filter(key => key.length > 0);
+      }
+    } catch (error) {
+      console.error('Error parsing MCP_API_KEYS:', error);
+      // Fallback to comma-separated values
+      apiKeys = apiKeysEnv
+        .split(',')
+        .map(key => key.trim())
+        .filter(key => key.length > 0);
+    }
 
     this.config = {
       apiKeys: new Set(apiKeys),
@@ -29,6 +46,7 @@ export class AuthService {
 
     if (this.config.apiKeys.size > 0) {
       console.log(`🔐 API Key authentication enabled with ${this.config.apiKeys.size} key(s)`);
+      console.log(`📋 Available API keys: ${Array.from(this.config.apiKeys).join(', ')}`);
     } else {
       console.log('🔓 API Key authentication disabled (open access)');
     }
@@ -77,6 +95,8 @@ export class AuthService {
 
       if (!this.isValidApiKey(apiKey)) {
         console.log(`🚫 Unauthorized access attempt from ${req.ip}`);
+        console.log(`🔍 Received API key: "${apiKey}"`);
+        console.log(`📋 Valid API keys: ${Array.from(this.config.apiKeys).join(', ')}`);
         return res.status(401).json({
           error: 'Unauthorized',
           message: 'Valid API key required. Provide via X-API-Key header, Authorization: Bearer token, or apiKey query parameter.'

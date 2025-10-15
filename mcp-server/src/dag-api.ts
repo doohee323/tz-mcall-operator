@@ -73,11 +73,24 @@ router.get('/workflows/:namespace/:name', async (req, res) => {
 router.get('/workflows/:namespace/:name/dag', async (req, res) => {
   try {
     const { namespace, name } = req.params;
-    const workflow = await k8sClient.getWorkflow(name, namespace);
+    
+    // Force refresh by adding cache-busting parameters
+    const forceRefresh = req.query.force === 'true' || req.query.refresh === 'true';
+    
+    console.log(`[DAG-API] 🔄 Fetching workflow ${namespace}/${name}, forceRefresh: ${forceRefresh}`);
+    console.log(`[DAG-API] 🕐 Request timestamp: ${new Date().toISOString()}`);
+    console.log(`[DAG-API] 🔗 Request URL: ${req.url}`);
+    console.log(`[DAG-API] 📋 Query params:`, req.query);
+    
+    const workflow = await k8sClient.getWorkflow(name, namespace, forceRefresh);
     
     // Log raw workflow status for debugging
+    console.log('[DAG-API] 📊 Raw workflow.metadata:', JSON.stringify(workflow.metadata, null, 2));
     console.log('[DAG-API] 📊 Raw workflow.status:', JSON.stringify(workflow.status, null, 2));
     console.log('[DAG-API] 🔗 workflow.status.dag:', JSON.stringify(workflow.status?.dag, null, 2));
+    console.log('[DAG-API] 🆔 workflow.status.dag.runID:', workflow.status?.dag?.runID);
+    console.log('[DAG-API] 📅 workflow.status.lastRunTime:', workflow.status?.lastRunTime);
+    console.log('[DAG-API] ⏰ workflow.status.startTime:', workflow.status?.startTime);
     
     // Extract DAG from workflow status
     const dag = workflow.status?.dag || {

@@ -282,10 +282,61 @@ export class KubernetesClient {
     }
   }
 
-  async getWorkflow(name: string, namespace?: string): Promise<any> {
+  async getWorkflow(name: string, namespace?: string, forceRefresh: boolean = false): Promise<any> {
     const ns = this.getNamespace(namespace);
     
     try {
+      if (forceRefresh) {
+        console.log(`[K8sClient] 🔄 Force refreshing workflow ${ns}/${name}`);
+        console.log(`[K8sClient] 🕐 Force refresh timestamp: ${new Date().toISOString()}`);
+        
+        // Method 1: Try with kubectl command (bypass API client cache completely)
+        try {
+          console.log(`[K8sClient] 🔧 Method 1: Using kubectl command to bypass cache`);
+          const { exec } = await import('child_process');
+          const { promisify } = await import('util');
+          const execAsync = promisify(exec);
+          
+          const kubectlCmd = `kubectl get mcallworkflow ${name} -n ${ns} -o json`;
+          console.log(`[K8sClient] 🔧 Executing: ${kubectlCmd}`);
+          
+          const { stdout } = await execAsync(kubectlCmd);
+          const workflow = JSON.parse(stdout);
+          
+          console.log(`[K8sClient] ✅ Method 1 SUCCESS - runID: ${workflow.status?.dag?.runID}`);
+          console.log(`[K8sClient] 📊 Method 1 - lastRunTime: ${workflow.status?.lastRunTime}`);
+          console.log(`[K8sClient] 📊 Method 1 - startTime: ${workflow.status?.startTime}`);
+          return workflow;
+        } catch (error1: any) {
+          console.log(`[K8sClient] ⚠️ Method 1 FAILED: ${error1.message}`);
+        }
+        
+        // Method 2: Try with fresh API client (fallback)
+        try {
+          console.log(`[K8sClient] 🔧 Method 2: Using completely fresh API client`);
+          const freshKc = new k8s.KubeConfig();
+          freshKc.loadFromDefault();
+          const freshApi = freshKc.makeApiClient(k8s.CustomObjectsApi);
+          
+          const response = await freshApi.getNamespacedCustomObject(
+            this.group,
+            this.version,
+            ns,
+            this.workflowPlural,
+            name
+          );
+          
+          console.log(`[K8sClient] ✅ Method 2 SUCCESS - runID: ${(response.body as any).status?.dag?.runID}`);
+          console.log(`[K8sClient] 📊 Method 2 - lastRunTime: ${(response.body as any).status?.lastRunTime}`);
+          console.log(`[K8sClient] 📊 Method 2 - startTime: ${(response.body as any).status?.startTime}`);
+          return response.body;
+        } catch (error2: any) {
+          console.log(`[K8sClient] ⚠️ Method 2 FAILED: ${error2.message}`);
+        }
+      }
+      
+      // Fallback to normal method
+      console.log(`[K8sClient] 🔧 Normal method: Using cached API client`);
       const response = await this.k8sApi.getNamespacedCustomObject(
         this.group,
         this.version,
@@ -293,6 +344,10 @@ export class KubernetesClient {
         this.workflowPlural,
         name
       );
+      
+      console.log(`[K8sClient] ✅ Normal method SUCCESS - runID: ${(response.body as any).status?.dag?.runID}`);
+      console.log(`[K8sClient] 📊 Normal method - lastRunTime: ${(response.body as any).status?.lastRunTime}`);
+      console.log(`[K8sClient] 📊 Normal method - startTime: ${(response.body as any).status?.startTime}`);
       return response.body;
     } catch (error: any) {
       throw new Error(`Failed to get workflow: ${error.body?.message || error.message}`);

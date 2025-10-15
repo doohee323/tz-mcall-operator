@@ -69,10 +69,22 @@ func (cs *CronScheduler) ShouldRun(ctx context.Context, workflow *mcallv1.McallW
 		return false, err
 	}
 
-	// Check if this is the first run
+	// Check if this is the first run - but still respect the schedule
 	if workflow.Status.LastRunTime == nil {
-		log.Info("First run of scheduled workflow", "workflow", workflow.Name, "schedule", workflow.Spec.Schedule)
-		return true, nil
+		log.Info("First run of scheduled workflow - checking if schedule allows immediate execution", "workflow", workflow.Name, "schedule", workflow.Spec.Schedule)
+		// For first run, check if current time matches the cron schedule
+		// This ensures scheduled workflows don't run immediately unless the schedule allows it
+		now := time.Now()
+		nextRun, err := cs.calculateNextRun(cron, time.Time{}) // Use zero time for first run calculation
+		if err != nil {
+			log.Error(err, "Failed to calculate first run time", "workflow", workflow.Name)
+			return false, err
+		}
+
+		// Only run if the schedule allows it (e.g., */1 should run every minute)
+		shouldRun := now.After(nextRun) || now.Equal(nextRun)
+		log.Info("First run schedule check", "workflow", workflow.Name, "nextRun", nextRun, "now", now, "shouldRun", shouldRun)
+		return shouldRun, nil
 	}
 
 	// Calculate next run time
@@ -86,6 +98,15 @@ func (cs *CronScheduler) ShouldRun(ctx context.Context, workflow *mcallv1.McallW
 	// Check if it's time to run
 	shouldRun := now.After(nextRun) || now.Equal(nextRun)
 
+	log.Info("DEBUG: ShouldRun calculation",
+		"workflow", workflow.Name,
+		"lastRun", workflow.Status.LastRunTime.Time,
+		"nextRun", nextRun,
+		"now", now,
+		"shouldRun", shouldRun,
+		"now.After(nextRun)", now.After(nextRun),
+		"now.Equal(nextRun)", now.Equal(nextRun))
+
 	if shouldRun {
 		log.Info("Workflow scheduled to run", "workflow", workflow.Name, "nextRun", nextRun, "now", now)
 	}
@@ -97,14 +118,36 @@ func (cs *CronScheduler) ShouldRun(ctx context.Context, workflow *mcallv1.McallW
 func (cs *CronScheduler) calculateNextRun(cron *CronExpression, lastRun time.Time) (time.Time, error) {
 	now := time.Now()
 
-	// For step expressions like "*/30", calculate based on the step interval
+	// For step expressions like "*/1", calculate based on the step interval
 	if strings.HasPrefix(cron.Minute, "*/") {
 		step, err := strconv.Atoi(cron.Minute[2:])
 		if err != nil {
 			return time.Time{}, fmt.Errorf("invalid step value in minute field: %s", cron.Minute)
 		}
 
-		// Calculate next run based on step interval from last run
+		// CRITICAL FIX: For */1 (every minute), always run every minute
+		if step == 1 {
+			// For */1, we should run every minute from the last run time
+			// Calculate how many minutes have passed since last run
+			minutesSinceLastRun := int(now.Sub(lastRun).Minutes())
+
+			// If more than 1 minute has passed, we should run now
+			if minutesSinceLastRun >= 1 {
+				// Return a time in the past to indicate we should run now
+				nextRun := now.Add(-1 * time.Minute)
+				fmt.Printf("DEBUG: */1 cron calculation - lastRun: %v, now: %v, minutesSinceLastRun: %d, nextRun: %v (should run now)\n",
+					lastRun, now, minutesSinceLastRun, nextRun)
+				return nextRun, nil
+			}
+
+			// If less than 1 minute has passed, calculate next run time
+			nextRun := lastRun.Add(1 * time.Minute)
+			fmt.Printf("DEBUG: */1 cron calculation - lastRun: %v, now: %v, minutesSinceLastRun: %d, nextRun: %v (wait)\n",
+				lastRun, now, minutesSinceLastRun, nextRun)
+			return nextRun, nil
+		}
+
+		// For other step intervals, use the original logic
 		nextRun := lastRun.Add(time.Duration(step) * time.Minute)
 
 		// If the calculated time is in the past, find the next valid time

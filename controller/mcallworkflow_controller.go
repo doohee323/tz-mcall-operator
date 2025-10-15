@@ -138,6 +138,11 @@ func (r *McallWorkflowReconciler) handleWorkflowRunning(ctx context.Context, wor
 		}
 		workflow.Status.CompletionTime = &metav1.Time{Time: time.Now()}
 
+		// CRITICAL FIX: Update LastRunTime when workflow completes for proper scheduling
+		if workflow.Spec.Schedule != "" {
+			workflow.Status.LastRunTime = &metav1.Time{Time: time.Now()}
+		}
+
 		// Build final DAG state
 		if err := r.buildWorkflowDAG(ctx, workflow); err != nil {
 			log.Error(err, "Failed to build final workflow DAG", "workflow", workflow.Name)

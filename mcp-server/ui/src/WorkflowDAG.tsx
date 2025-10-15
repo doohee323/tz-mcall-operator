@@ -105,6 +105,9 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   // Task detail popup state
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showTaskPopup, setShowTaskPopup] = useState(false);
+  
+  // Ref to store the fetchDAGInternal function for manual refresh
+  const fetchDAGRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null);
 
   // localStorage keys for caching current DAG and history
   const cacheKey = `dag-cache-${currentNamespace}-${currentWorkflowName}`;
@@ -114,15 +117,20 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [lastValidDAG, setLastValidDAG] = useState<any>(() => {
     try {
       const cached = localStorage.getItem(cacheKey);
+      console.log('[DAG] 🔍 Checking localStorage for cacheKey:', cacheKey);
+      console.log('[DAG] 🔍 Cached data exists:', !!cached);
       if (cached) {
         const parsedDAG = JSON.parse(cached);
         console.log('[DAG] 📦 Loaded from localStorage:', {
           nodes: parsedDAG.nodes?.length || 0,
-          runID: parsedDAG.runID
+          runID: parsedDAG.runID,
+          timestamp: parsedDAG.timestamp,
+          workflowPhase: parsedDAG.workflowPhase
         });
+        console.log('[DAG] 📦 Full cached DAG:', parsedDAG);
         return parsedDAG;
       } else {
-        console.log('[DAG] 📦 No cache found in localStorage');
+        console.log('[DAG] 📦 No cache found in localStorage for key:', cacheKey);
         return null;
       }
     } catch (e) {
@@ -153,31 +161,45 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
 
   // Save DAG to history (max 10 items)
   const saveToHistory = useCallback((dag: any) => {
+    console.log('[DAG] 💾 saveToHistory called with:', {
+      hasDag: !!dag,
+      runID: dag?.runID,
+      nodesLength: dag?.nodes?.length,
+      timestamp: dag?.timestamp,
+      workflowPhase: dag?.workflowPhase
+    });
+    
     if (!dag || !dag.runID || !dag.nodes || dag.nodes.length === 0) {
+      console.log('[DAG] 💾 Skipping save - invalid DAG data');
       return;
     }
 
     try {
       const history = loadHistoryFromStorage();
+      console.log('[DAG] 💾 Current history length:', history.length);
+      console.log('[DAG] 💾 Current history runIDs:', history.map((h: any) => h.runID));
       
       // Check if this runID already exists
       const existingIndex = history.findIndex((item: any) => item.runID === dag.runID);
       if (existingIndex >= 0) {
-        console.log('[DAG] 📚 RunID already in history:', dag.runID);
+        console.log('[DAG] 📚 RunID already in history:', dag.runID, 'at index:', existingIndex);
         return;
       }
 
       // Add to beginning of history
       const newHistory = [dag, ...history];
+      console.log('[DAG] 💾 New history will have length:', newHistory.length);
       
       // Keep only last 10 items
       if (newHistory.length > 10) {
         newHistory.splice(10);
+        console.log('[DAG] 💾 Trimmed history to 10 items');
       }
 
       localStorage.setItem(historyKey, JSON.stringify(newHistory));
       setDAGHistory(newHistory);
       console.log('[DAG] 💾 Saved to history:', dag.runID, '- Total items:', newHistory.length);
+      console.log('[DAG] 💾 New history runIDs:', newHistory.map((h: any) => h.runID));
     } catch (e) {
       console.error('[DAG] ❌ Error saving to history:', e);
     }
@@ -186,7 +208,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   // Fetch available namespaces
   const fetchAvailableNamespaces = useCallback(async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Use current origin for API calls (supports port-forwarding)
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       const apiKey = (window as any).MCP_API_KEY || '';
       const response = await fetch(`${apiUrl}/api/namespaces`, {
         headers: apiKey ? { 'X-API-Key': apiKey } : {}
@@ -204,7 +227,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   // Fetch available workflows in namespace
   const fetchAvailableWorkflows = useCallback(async (ns: string) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Use current origin for API calls (supports port-forwarding)
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       const apiKey = (window as any).MCP_API_KEY || '';
       const response = await fetch(`${apiUrl}/api/workflows/${ns}`, {
         headers: apiKey ? { 'X-API-Key': apiKey } : {}
@@ -236,21 +260,97 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
 
   // Fetch task details
   const fetchTaskDetails = useCallback(async (taskName: string) => {
+    console.log('[DAG] 🔍 ========== fetchTaskDetails START ==========');
+    console.log('[DAG] 🔍 Called with taskName:', taskName);
+    console.log('[DAG] 🔍 Current namespace:', currentNamespace);
+    console.log('[DAG] 🔍 Current workflow:', currentWorkflowName);
+    console.log('[DAG] 🔍 Nodes array length:', nodes.length);
+    console.log('[DAG] 🔍 Nodes array:', nodes);
+    
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const apiKey = (window as any).MCP_API_KEY || '';
-      const response = await fetch(`${apiUrl}/api/tasks/${currentNamespace}/${taskName}`, {
-        headers: apiKey ? { 'X-API-Key': apiKey } : {}
-      });
-      if (response.ok) {
+      // If nodes array is empty, fetch fresh DAG data
+      let dagData = null;
+      if (nodes.length === 0) {
+        console.log('[DAG] 🔍 Nodes array is empty, fetching fresh DAG data...');
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const apiKey = (window as any).MCP_API_KEY || '';
+        const response = await fetch(`${apiUrl}/api/workflows/${currentNamespace}/${currentWorkflowName}/dag?force=true&t=${Date.now()}`, {
+          headers: apiKey ? { 'X-API-Key': apiKey } : {}
+        });
         const data = await response.json();
-        setSelectedTask(data.data);
+        dagData = data.dag;
+        console.log('[DAG] 🔍 Fresh DAG data fetched:', dagData);
+      }
+      
+      // Use either React state nodes or fresh DAG data
+      const searchNodes = nodes.length > 0 ? nodes : (dagData?.nodes || []);
+      console.log('[DAG] 🔍 Search nodes length:', searchNodes.length);
+      console.log('[DAG] 🔍 Search nodes:', searchNodes);
+      console.log('[DAG] 🔍 Node IDs:', searchNodes.map((n: any) => n.id));
+      console.log('[DAG] 🔍 Node data names:', searchNodes.map((n: any) => n.data?.name));
+      console.log('[DAG] 🔍 Node taskRefs:', searchNodes.map((n: any) => n.data?.taskRef));
+      console.log('[DAG] 🔍 Node phases:', searchNodes.map((n: any) => n.data?.phase));
+      console.log('[DAG] 🔍 Node errorMessages:', searchNodes.map((n: any) => n.data?.errorMessage));
+      
+      // First try to find by node.data.name (actual task name from workflow execution)
+      console.log('[DAG] 🔍 Searching by node.data.name === taskName...');
+      let currentTask = searchNodes.find((node: any) => node.data?.name === taskName);
+      console.log('[DAG] 🔍 Found task by data.name:', currentTask);
+      
+      // If not found, try by node.id
+      if (!currentTask) {
+        console.log('[DAG] 🔍 Searching by node.id === taskName...');
+        currentTask = searchNodes.find((node: any) => node.id === taskName);
+        console.log('[DAG] 🔍 Found task by id:', currentTask);
+      }
+      
+      // If still not found, try to find by removing '-template' suffix
+      if (!currentTask && taskName.endsWith('-template')) {
+        const actualTaskName = taskName.replace('-template', '');
+        console.log('[DAG] 🔍 Searching by actual task name (removed -template):', actualTaskName);
+        currentTask = searchNodes.find((node: any) => node.data?.name === actualTaskName);
+        console.log('[DAG] 🔍 Found task by actual name:', currentTask);
+      }
+      
+      if (currentTask) {
+        console.log('[DAG] 🔍 ✅ Task found! Creating task details...');
+        console.log('[DAG] 🔍 Raw currentTask object:', currentTask);
+        console.log('[DAG] 🔍 currentTask.data:', currentTask.data);
+        console.log('[DAG] 🔍 currentTask.id:', currentTask.id);
+        
+        // Create task details object from DAG node data
+        // Use the actual node structure from the DAG API response
+        const taskDetails = {
+          name: currentTask.id || currentTask.data?.name,
+          namespace: currentNamespace,
+          type: currentTask.data?.type || currentTask.type,
+          phase: currentTask.data?.phase || currentTask.phase || 'Unknown',
+          input: currentTask.data?.input || currentTask.input,
+          output: currentTask.data?.output || currentTask.output,
+          errorMessage: currentTask.data?.errorMessage || currentTask.errorMessage,
+          startTime: currentTask.data?.startTime || currentTask.startTime,
+          endTime: currentTask.data?.endTime || currentTask.endTime,
+          duration: currentTask.data?.duration || currentTask.duration,
+          errorCode: currentTask.data?.errorCode || currentTask.errorCode,
+          httpStatusCode: currentTask.data?.httpStatusCode || currentTask.httpStatusCode
+        };
+        console.log('[DAG] 🔍 Task details created:', taskDetails);
+        console.log('[DAG] 🔍 Task details JSON:', JSON.stringify(taskDetails, null, 2));
+        setSelectedTask(taskDetails);
         setShowTaskPopup(true);
+        console.log('[DAG] 🔍 ✅ Task popup opened successfully');
+      } else {
+        console.error('[DAG] ❌ Task not found in current DAG:', taskName);
+        console.log('[DAG] 🔍 Available task names:', searchNodes.map((n: any) => n.data?.name));
+        console.log('[DAG] 🔍 Available task IDs:', searchNodes.map((n: any) => n.id));
+        console.log('[DAG] 🔍 Available taskRefs:', searchNodes.map((n: any) => n.data?.taskRef));
       }
     } catch (error) {
-      console.error('[DAG] ❌ Error fetching task details:', error);
+      console.error('[DAG] ❌ Error getting task details from DAG:', error);
+      console.error('[DAG] ❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     }
-  }, [currentNamespace]);
+    console.log('[DAG] 🔍 ========== fetchTaskDetails END ==========');
+  }, [currentNamespace, currentWorkflowName, nodes]);
 
   // Handle task detail button click
   const handleTaskDetailClick = useCallback((taskName: string) => {
@@ -269,11 +369,15 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     setIsConnected(true);
     
     // Define fetchDAG function inside useEffect to avoid dependency issues
-    const fetchDAGInternal = async () => {
+    const fetchDAGInternal = async (forceRefresh: boolean = false) => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        // Use current origin for API calls (supports port-forwarding)
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const apiKey = (window as any).MCP_API_KEY || '';
-        const response = await fetch(`${apiUrl}/api/workflows/${currentNamespace}/${currentWorkflowName}/dag`, {
+        
+        // Add force parameter if forceRefresh is true
+        const forceParam = forceRefresh ? '&force=true' : '';
+        const response = await fetch(`${apiUrl}/api/workflows/${currentNamespace}/${currentWorkflowName}/dag?t=${Date.now()}${forceParam}`, {
           headers: apiKey ? { 'X-API-Key': apiKey } : {}
         });
         const data = await response.json();
@@ -308,20 +412,54 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         }
 
         // Check if we should show stale data
+        // IMPORTANT: Only use cache if API returned empty data AND we're not forcing refresh
+        // If API returned data with a different runID, we should use that instead of cache
         if (!displayDAG || !displayDAG.nodes || displayDAG.nodes.length === 0) {
-          if (lastValidDAG && lastValidDAG.nodes && lastValidDAG.nodes.length > 0) {
+          if (!forceRefresh && lastValidDAG && lastValidDAG.nodes && lastValidDAG.nodes.length > 0) {
             displayDAG = lastValidDAG;
             showingStale = true;
             console.log('[DAG] 🔄 Using cached DAG (API returned empty)');
+          } else if (forceRefresh) {
+            console.log('[DAG] 🔄 Force refresh - NOT using cached DAG even though API returned empty');
+          }
+        } else {
+          // API returned data - check if it's a new runID
+          const currentRunID = displayDAG.runID;
+          const cachedRunID = lastValidDAG?.runID;
+          
+          if (currentRunID && cachedRunID && currentRunID !== cachedRunID) {
+            console.log('[DAG] 🆕 NEW RUNID DETECTED!', {
+              currentRunID,
+              cachedRunID,
+              message: 'Using new runID from API instead of cache'
+            });
+            // Don't use cache - use the new data from API
+            showingStale = false;
+          } else if (currentRunID === cachedRunID) {
+            console.log('[DAG] 🔄 Same runID as cache:', currentRunID);
           }
         }
 
+        console.log('[DAG] 🔍 ========== fetchDAGInternal DAG Processing ==========');
+        console.log('[DAG] 🔍 displayDAG:', displayDAG);
+        console.log('[DAG] 🔍 displayDAG.nodes:', displayDAG?.nodes);
+        console.log('[DAG] 🔍 displayDAG.nodes.length:', displayDAG?.nodes?.length);
+        
         if (displayDAG && displayDAG.nodes && displayDAG.nodes.length > 0) {
+          console.log('[DAG] 🔍 ✅ Valid DAG found, processing nodes...');
+          console.log('[DAG] 🔍 Raw nodes data:', displayDAG.nodes);
           // Update cache
           setLastValidDAG(displayDAG);
           try {
+            console.log('[DAG] 💾 Saving to localStorage:', {
+              cacheKey,
+              runID: displayDAG.runID,
+              timestamp: displayDAG.timestamp,
+              workflowPhase: displayDAG.workflowPhase,
+              nodesLength: displayDAG.nodes?.length
+            });
             localStorage.setItem(cacheKey, JSON.stringify(displayDAG));
-            console.log('[DAG] 💾 Saved to localStorage:', cacheKey);
+            console.log('[DAG] 💾 Successfully saved to localStorage:', cacheKey);
           } catch (e) {
             console.warn('[DAG] ❌ Failed to cache DAG to localStorage:', e);
           }
@@ -330,13 +468,32 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           // 1. This is current run (not viewing history)
           // 2. DAG is from server (not cache)
           // 3. runID is NEW (different from last saved)
+          console.log('[DAG] 🔍 Checking if should save to history:', {
+            selectedRunID,
+            hasDataDag: !!data.dag,
+            dataDagRunID: data.dag?.runID,
+            lastSavedRunID,
+            isCurrentRun: selectedRunID === 'current',
+            hasRunID: !!data.dag?.runID,
+            isNewRunID: data.dag?.runID !== lastSavedRunID
+          });
+          
           if (selectedRunID === 'current' && data.dag && data.dag.runID && data.dag.runID !== lastSavedRunID) {
+            console.log('[DAG] ✨ NEW RUN DETECTED! Saving to history:', data.dag.runID);
             saveToHistory(displayDAG);
             setLastSavedRunID(data.dag.runID);
             console.log('[DAG] ✨ New run detected and saved to history:', data.dag.runID);
             setIsStaleDAG(false);
-          } else if (showingStale) {
-            setIsStaleDAG(true);
+          } else {
+            console.log('[DAG] 📚 NOT saving to history - conditions not met:', {
+              reason: !selectedRunID ? 'not current run' : 
+                      !data.dag ? 'no data.dag' :
+                      !data.dag.runID ? 'no runID' :
+                      data.dag.runID === lastSavedRunID ? 'same runID' : 'unknown'
+            });
+            if (showingStale) {
+              setIsStaleDAG(true);
+            }
           }
         } else if (showingStale) {
           console.log('[DAG] ⚠️ Showing stale DAG');
@@ -383,7 +540,8 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleTaskDetailClick(node.taskRef || node.name);
+                    // Use node.name (actual task name) instead of node.taskRef (template name)
+                    handleTaskDetailClick(node.name);
                   }}
                   style={{
                     marginTop: '5px',
@@ -433,14 +591,25 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           },
         }));
 
+        console.log('[DAG] 🔍 ========== Setting ReactFlow Nodes ==========');
+        console.log('[DAG] 🔍 flowNodes length:', flowNodes.length);
+        console.log('[DAG] 🔍 flowNodes:', flowNodes);
+        console.log('[DAG] 🔍 flowEdges length:', flowEdges.length);
+        console.log('[DAG] 🔍 flowEdges:', flowEdges);
+        
         setNodes(flowNodes);
         setEdges(flowEdges);
+        
+        console.log('[DAG] 🔍 ✅ ReactFlow nodes and edges set successfully');
         console.log('[DAG] ✨ Nodes and Edges set successfully');
       } catch (error) {
         console.error('[DAG] ❌ Error fetching DAG:', error);
       }
     };
 
+    // Store the function in ref for manual refresh
+    fetchDAGRef.current = fetchDAGInternal;
+    
     fetchDAGInternal(); // Initial fetch
 
     // Auto-refresh every 5 seconds (workflow runs every 1 minute)
@@ -562,9 +731,15 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           }}>
             <button 
               onClick={() => {
-                // Force refresh by updating the component state
-                setCurrentNamespace(currentNamespace);
-                setCurrentWorkflowName(currentWorkflowName);
+                console.log('[DAG] 🔄 Manual refresh button clicked - forcing refresh');
+                // Force refresh by calling fetchDAGInternal with forceRefresh=true
+                if (fetchDAGRef.current) {
+                  fetchDAGRef.current(true);
+                } else {
+                  console.warn('[DAG] ⚠️ fetchDAGRef.current is null - falling back to state update');
+                  setCurrentNamespace(currentNamespace);
+                  setCurrentWorkflowName(currentWorkflowName);
+                }
               }}
               style={{
                 padding: '6px 8px',
@@ -740,7 +915,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
 
             {/* Task Details Content */}
             <h2 style={{ marginTop: 0, marginBottom: '20px', color: '#1976d2' }}>
-              📋 Task Details: {selectedTask.metadata?.name}
+              📋 Task Details: {selectedTask.name || selectedTask.metadata?.name}
             </h2>
 
             <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
@@ -751,15 +926,15 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                   <tbody>
                     <tr style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '8px', fontWeight: 'bold', width: '150px' }}>Name:</td>
-                      <td style={{ padding: '8px' }}>{selectedTask.metadata?.name}</td>
+                      <td style={{ padding: '8px' }}>{selectedTask.name || selectedTask.metadata?.name}</td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '8px', fontWeight: 'bold' }}>Namespace:</td>
-                      <td style={{ padding: '8px' }}>{selectedTask.metadata?.namespace}</td>
+                      <td style={{ padding: '8px' }}>{selectedTask.namespace || selectedTask.metadata?.namespace}</td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '8px', fontWeight: 'bold' }}>Type:</td>
-                      <td style={{ padding: '8px' }}>{selectedTask.spec?.type}</td>
+                      <td style={{ padding: '8px' }}>{selectedTask.type || selectedTask.spec?.type}</td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '8px', fontWeight: 'bold' }}>Phase:</td>
@@ -768,14 +943,14 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                           padding: '2px 8px',
                           borderRadius: '4px',
                           backgroundColor: 
-                            selectedTask.status?.phase === 'Succeeded' ? '#4caf50' :
-                            selectedTask.status?.phase === 'Failed' ? '#f44336' :
-                            selectedTask.status?.phase === 'Running' ? '#2196f3' :
+                            (selectedTask.phase || selectedTask.status?.phase) === 'Succeeded' ? '#4caf50' :
+                            (selectedTask.phase || selectedTask.status?.phase) === 'Failed' ? '#f44336' :
+                            (selectedTask.phase || selectedTask.status?.phase) === 'Running' ? '#2196f3' :
                             '#9e9e9e',
                           color: '#fff',
                           fontSize: '12px'
                         }}>
-                          {selectedTask.status?.phase || 'Unknown'}
+                          {selectedTask.phase || selectedTask.status?.phase || 'Unknown'}
                         </span>
                       </td>
                     </tr>
@@ -784,10 +959,10 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
               </div>
 
               {/* Input (URL, Command, or other) */}
-              {selectedTask.spec?.input && (
+              {(selectedTask.input || selectedTask.spec?.input) && (
                 <div style={{ marginBottom: '20px' }}>
                   <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#333' }}>
-                    {selectedTask.spec.type === 'get' || selectedTask.spec.type === 'post' ? 'URL' : 'Input/Command'}
+                    {(selectedTask.type || selectedTask.spec?.type) === 'get' || (selectedTask.type || selectedTask.spec?.type) === 'post' ? 'URL' : 'Input/Command'}
                   </h3>
                   <pre style={{
                     backgroundColor: '#f5f5f5',
@@ -798,33 +973,33 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                     wordBreak: 'break-all',
                     whiteSpace: 'pre-wrap'
                   }}>
-                    {selectedTask.spec.input}
+                    {selectedTask.input || selectedTask.spec?.input}
                   </pre>
                 </div>
               )}
 
               {/* Timing */}
-              {(selectedTask.status?.startTime || selectedTask.status?.completionTime) && (
+              {(selectedTask.startTime || selectedTask.endTime || selectedTask.duration || selectedTask.status?.startTime || selectedTask.status?.completionTime) && (
                 <div style={{ marginBottom: '20px' }}>
                   <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#333' }}>Timing</h3>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <tbody>
-                      {selectedTask.status?.startTime && (
+                      {(selectedTask.startTime || selectedTask.status?.startTime) && (
                         <tr style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold', width: '150px' }}>Start Time:</td>
-                          <td style={{ padding: '8px' }}>{new Date(selectedTask.status.startTime).toLocaleString()}</td>
+                          <td style={{ padding: '8px' }}>{new Date(selectedTask.startTime || selectedTask.status?.startTime).toLocaleString()}</td>
                         </tr>
                       )}
-                      {selectedTask.status?.completionTime && (
+                      {(selectedTask.endTime || selectedTask.status?.completionTime) && (
                         <tr style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>Completion Time:</td>
-                          <td style={{ padding: '8px' }}>{new Date(selectedTask.status.completionTime).toLocaleString()}</td>
+                          <td style={{ padding: '8px' }}>{new Date(selectedTask.endTime || selectedTask.status?.completionTime).toLocaleString()}</td>
                         </tr>
                       )}
-                      {selectedTask.status?.executionTime && (
+                      {(selectedTask.duration || selectedTask.status?.executionTime) && (
                         <tr style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>Execution Time:</td>
-                          <td style={{ padding: '8px' }}>{selectedTask.status.executionTime}</td>
+                          <td style={{ padding: '8px' }}>{selectedTask.duration || selectedTask.status?.executionTime}</td>
                         </tr>
                       )}
                     </tbody>
@@ -833,38 +1008,38 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
               )}
 
               {/* Result - Error Code & Output */}
-              {selectedTask.status?.result && (
+              {(selectedTask.errorCode !== undefined || selectedTask.errorMessage || selectedTask.output || selectedTask.status?.result) && (
                 <div style={{ marginBottom: '20px' }}>
                   <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#333' }}>Result</h3>
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
                     <tbody>
-                      {selectedTask.status.result.errorCode !== undefined && (
+                      {(selectedTask.errorCode !== undefined || (selectedTask.status?.result?.errorCode !== undefined)) && (
                         <tr style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold', width: '150px' }}>Error Code:</td>
                           <td style={{ padding: '8px' }}>
                             <span style={{
                               padding: '2px 8px',
                               borderRadius: '4px',
-                              backgroundColor: selectedTask.status.result.errorCode === '0' ? '#4caf50' : '#f44336',
+                              backgroundColor: (selectedTask.errorCode === 0 || selectedTask.status?.result?.errorCode === '0') ? '#4caf50' : '#f44336',
                               color: '#fff',
                               fontSize: '12px'
                             }}>
-                              {selectedTask.status.result.errorCode}
+                              {selectedTask.errorCode !== undefined ? selectedTask.errorCode : selectedTask.status?.result?.errorCode}
                             </span>
                           </td>
                         </tr>
                       )}
-                      {selectedTask.status.result.errorMessage && (
+                      {(selectedTask.errorMessage || selectedTask.status?.result?.errorMessage) && (
                         <tr style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold', width: '150px' }}>Error Message:</td>
                           <td style={{ padding: '8px', color: '#f44336', fontWeight: 'bold' }}>
-                            {selectedTask.status.result.errorMessage}
+                            {selectedTask.errorMessage || selectedTask.status?.result?.errorMessage}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
-                  {selectedTask.status.result.output && (
+                  {(selectedTask.output || selectedTask.status?.result?.output) && (
                     <div>
                       <h4 style={{ fontSize: '14px', marginBottom: '8px', color: '#666' }}>Output:</h4>
                       <pre style={{
@@ -878,7 +1053,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                         wordBreak: 'break-all',
                         whiteSpace: 'pre-wrap'
                       }}>
-                        {selectedTask.status.result.output}
+                        {selectedTask.output || selectedTask.status?.result?.output}
                       </pre>
                     </div>
                   )}

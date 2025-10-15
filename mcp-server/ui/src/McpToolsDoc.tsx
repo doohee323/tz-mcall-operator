@@ -512,7 +512,7 @@ EOF`;
                   <td style={{ padding: '5px 10px 5px 0', fontWeight: '500' }}>MCP Endpoint:</td>
                   <td style={{ padding: '5px 0' }}>
                     <code style={{ background: '#fff', padding: '4px 8px', borderRadius: '3px', border: '1px solid #ddd' }}>
-                      https://mcp-dev.drillquiz.com/mcp
+                      {window.location.origin}/mcp
                     </code>
                   </td>
                 </tr>

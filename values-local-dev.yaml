@@ -1,0 +1,45 @@
+# Local development environment values
+# This file is optimized for local development with Docker Desktop Kubernetes
+
+environment:
+  name: "local-dev"
+  suffix: "-local-dev"
+
+namespace:
+  name: "mcall-dev"
+  create: true
+
+controller:
+  replicas: 1
+  reconcileInterval: 5
+  taskTimeout: 5
+
+mcpServer:
+  enabled: true  # Jenkins 이미지 사용
+  replicas: 1
+  
+  image:
+    repository: "doohee323/mcall-operator-mcp-server"
+    tag: "157"  # Jenkins에서 빌드된 최신 이미지
+    pullPolicy: "IfNotPresent"
+  
+  auth:
+    enabled: true
+    existingSecret: "mcp-api-keys"
+    apiKeys: ""
+  
+  ingress:
+    enabled: false  # 로컬에서는 Ingress 비활성화 (포트 포워딩 사용)
+
+logging:
+  enabled: false  # PostgreSQL 없이 테스트
+
+image:
+  repository: "doohee323/tz-mcall-operator"
+  tag: "157"  # Jenkins에서 빌드된 최신 이미지
+  pullPolicy: "IfNotPresent"
+
+global:
+  imageRegistry: ""
+  imagePullSecrets:
+    - name: tz-registrykey

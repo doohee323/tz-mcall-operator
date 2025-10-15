@@ -14,9 +14,13 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Build UI
+# Build UI with environment variables
 WORKDIR /app/ui
-RUN npm ci && npm run build
+RUN npm ci
+# Set API URL to use current host for dynamic configuration
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL:-""}
+RUN npm run build
 
 # Production image
 FROM node:20-alpine

@@ -1,0 +1,348 @@
+# Local Development Health Monitor Workflow with Jenkins Recovery
+#
+# This workflow demonstrates:
+# 1. Health check of local services (MCP server, Kubernetes API)
+# 2. Conditional execution based on health check results
+# 3. Task result passing via InputSources and InputTemplate
+# 4. Logging to local disk (/app/log/mcall/)
+# 5. Jenkins recovery build trigger on failure
+# 6. Proper error handling for kubectl commands
+
+---
+# Template Task 1: MCP Server Health Check
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: mcp-server-health-check-template
+  namespace: mcall-dev
+spec:
+  type: get
+  input: https://us-qa.drillquiz.com/health
+  timeout: 30
+  retryCount: 2
+
+---
+# Template Task 2: Kubernetes API Health Check
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: k8s-api-health-check-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: kubectl get nodes --no-headers | wc -l
+  timeout: 30
+  retryCount: 1
+
+---
+# Template Task 3: Success Logger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: log-success-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 10
+
+---
+# Template Task 4: Failure Logger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: log-failure-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 10
+
+---
+# Template Task 5: Jenkins Build Trigger
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-build-trigger-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 60
+  retryCount: 2
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "triggerBuild"
+    arguments:
+      jobFullName: "docker-test"
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+
+---
+# Template Task 6: Resource Cleanup
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: resource-cleanup-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 30
+
+---
+# Template Task 7: Status Report
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: status-report-template
+  namespace: mcall-dev
+spec:
+  type: cmd
+  input: "echo 'Template command - will be overridden by InputTemplate'"
+  timeout: 15
+
+---
+# Workflow: Local Health Monitor with Jenkins Recovery
+apiVersion: mcall.tz.io/v1
+kind: McallWorkflow
+metadata:
+  name: health-monitor
+  namespace: mcall-dev
+spec:
+  schedule: '*/5 * * * *'  # Every 5 minutes
+  concurrency: 2
+  timeout: 300
+  tasks:
+  
+  # Task 1: MCP Server Health Check
+  - name: mcp-healthcheck
+    taskRef:
+      name: mcp-server-health-check-template
+      namespace: mcall-dev
+    dependencies: []
+  
+  # Task 2: Kubernetes API Health Check
+  - name: k8s-healthcheck
+    taskRef:
+      name: k8s-api-health-check-template
+      namespace: mcall-dev
+    dependencies: []
+  
+  # Task 3: Log Success (runs only if both health checks succeed)
+  - name: log-success
+    taskRef:
+      name: log-success-template
+      namespace: mcall-dev
+    dependencies:
+      - mcp-healthcheck
+      - k8s-healthcheck
+    condition:
+      dependentTask: mcp-healthcheck
+      when: success
+    inputSources:
+      - name: MCP_PHASE
+        taskRef: mcp-healthcheck
+        field: phase
+      - name: MCP_ERROR_CODE
+        taskRef: mcp-healthcheck
+        field: errorCode
+      - name: K8S_PHASE
+        taskRef: k8s-healthcheck
+        field: phase
+      - name: K8S_ERROR_CODE
+        taskRef: k8s-healthcheck
+        field: errorCode
+      - name: COMPLETION_TIME
+        taskRef: mcp-healthcheck
+        field: completionTime
+    inputTemplate: |
+      mkdir -p /app/log/mcall
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ SUCCESS - All services healthy" >> /app/log/mcall/health_monitor.log
+      echo "  MCP Server: Phase=${MCP_PHASE}, ErrorCode=${MCP_ERROR_CODE}" >> /app/log/mcall/health_monitor.log
+      echo "  K8s API: Phase=${K8S_PHASE}, ErrorCode=${K8S_ERROR_CODE}" >> /app/log/mcall/health_monitor.log
+      echo "  Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
+      echo "  🎉 Local development environment is UP" >> /app/log/mcall/health_monitor.log
+      echo "---" >> /app/log/mcall/health_monitor.log
+      echo "📊 Recent logs:"
+      tail -10 /app/log/mcall/health_monitor.log
+  
+  # Task 4: Log Failure (runs if any health check fails)
+  - name: log-failure
+    taskRef:
+      name: log-failure-template
+      namespace: mcall-dev
+    dependencies:
+      - mcp-healthcheck
+      - k8s-healthcheck
+    condition:
+      dependentTask: mcp-healthcheck
+      when: failure
+    inputSources:
+      - name: MCP_PHASE
+        taskRef: mcp-healthcheck
+        field: phase
+      - name: MCP_ERROR_CODE
+        taskRef: mcp-healthcheck
+        field: errorCode
+      - name: MCP_ERROR_MESSAGE
+        taskRef: mcp-healthcheck
+        field: errorMessage
+        default: "Unknown error"
+      - name: K8S_PHASE
+        taskRef: k8s-healthcheck
+        field: phase
+      - name: K8S_ERROR_CODE
+        taskRef: k8s-healthcheck
+        field: errorCode
+      - name: COMPLETION_TIME
+        taskRef: mcp-healthcheck
+        field: completionTime
+    inputTemplate: |
+      mkdir -p /app/log/mcall
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ FAILED - Service health check failed" >> /app/log/mcall/health_monitor.log
+      echo "  MCP Server: Phase=${MCP_PHASE}, ErrorCode=${MCP_ERROR_CODE}" >> /app/log/mcall/health_monitor.log
+      echo "  MCP Error: ${MCP_ERROR_MESSAGE}" >> /app/log/mcall/health_monitor.log
+      echo "  K8s API: Phase=${K8S_PHASE}, ErrorCode=${K8S_ERROR_CODE}" >> /app/log/mcall/health_monitor.log
+      echo "  Completed: ${COMPLETION_TIME}" >> /app/log/mcall/health_monitor.log
+      echo "  🚨 Local development environment has issues" >> /app/log/mcall/health_monitor.log
+      echo "  🔧 Check Docker Desktop and port forwarding" >> /app/log/mcall/health_monitor.log
+      echo "  🚀 Triggering Jenkins recovery build..." >> /app/log/mcall/health_monitor.log
+      echo "---" >> /app/log/mcall/health_monitor.log
+      echo "📊 Recent logs:"
+      tail -10 /app/log/mcall/health_monitor.log
+  
+  # Task 5: Resource Cleanup (runs only after log-failure)
+  - name: resource-cleanup
+    taskRef:
+      name: resource-cleanup-template
+      namespace: mcall-dev
+    dependencies:
+      - log-failure
+    condition:
+      dependentTask: log-failure
+      when: success
+    inputSources:
+      - name: FAILURE_PHASE
+        taskRef: log-failure
+        field: phase
+      - name: WORKFLOW_START_TIME
+        taskRef: mcp-healthcheck
+        field: startTime
+    inputTemplate: |
+      set -e  # Exit on any error
+      echo "🧹 Cleaning up resources after failure..."
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🧹 RESOURCE CLEANUP STARTED" >> /app/log/mcall/health_monitor.log
+      echo "  Failure phase: ${FAILURE_PHASE}" >> /app/log/mcall/health_monitor.log
+      echo "  Workflow started: ${WORKFLOW_START_TIME}" >> /app/log/mcall/health_monitor.log
+      
+      # Clean up old log files (keep last 100 lines)
+      if [ -f /app/log/mcall/health_monitor.log ]; then
+        tail -100 /app/log/mcall/health_monitor.log > /app/log/mcall/health_monitor.log.tmp
+        mv /app/log/mcall/health_monitor.log.tmp /app/log/mcall/health_monitor.log
+        echo "✅ Log cleanup completed"
+        echo "  Log cleanup: SUCCESS" >> /app/log/mcall/health_monitor.log
+      fi
+      
+      # Clean up old pods (optional) - with proper error handling
+      echo "🔍 Checking for cleanup candidates..."
+      
+      # Check if kubectl is available before using it
+      if command -v kubectl >/dev/null 2>&1; then
+        echo "✅ kubectl is available, checking for completed pods..."
+        kubectl get pods --all-namespaces --field-selector=status.phase=Succeeded -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\n"}{end}' | head -5 || echo "No completed pods found"
+        echo "  Pod cleanup check: COMPLETED" >> /app/log/mcall/health_monitor.log
+      else
+        echo "⚠️ kubectl not found, skipping pod cleanup check"
+        echo "  Pod cleanup check: SKIPPED (kubectl not available)" >> /app/log/mcall/health_monitor.log
+      fi
+      
+      echo "📊 Cleanup phase: ${FAILURE_PHASE}"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🧹 RESOURCE CLEANUP COMPLETED" >> /app/log/mcall/health_monitor.log
+  
+  # Task 6: Trigger Jenkins Build (runs only after resource-cleanup)
+  - name: trigger-jenkins-recovery
+    taskRef:
+      name: jenkins-build-trigger-template
+      namespace: mcall-dev
+    dependencies:
+      - resource-cleanup
+    condition:
+      dependentTask: resource-cleanup
+      when: success
+  
+  # Task 7: Status Report (runs only after Jenkins trigger)
+  - name: status-report
+    taskRef:
+      name: status-report-template
+      namespace: mcall-dev
+    dependencies:
+      - trigger-jenkins-recovery
+    condition:
+      dependentTask: trigger-jenkins-recovery
+      when: success
+    inputSources:
+      - name: JENKINS_PHASE
+        taskRef: trigger-jenkins-recovery
+        field: phase
+      - name: WORKFLOW_START_TIME
+        taskRef: mcp-healthcheck
+        field: startTime
+    inputTemplate: |
+      echo "📋 HEALTH MONITOR STATUS REPORT (FAILURE RECOVERY)"
+      echo "=================================================="
+      echo "🕐 Workflow started: ${WORKFLOW_START_TIME}"
+      echo "🚀 Jenkins trigger phase: ${JENKINS_PHASE}"
+      echo "📁 Log location: /app/log/mcall/health_monitor.log"
+      echo ""
+      echo "🔍 Recovery actions taken:"
+      echo "  ✅ Resource cleanup completed"
+      echo "  🚀 Jenkins recovery build triggered"
+      echo "  📊 Status report generated"
+      echo ""
+      echo "🔍 Current system status:"
+      echo "  - MCP Server: $(curl -s https://us-qa.drillquiz.com/health | grep -o '"status":"[^"]*"' || echo 'Unknown')"
+      
+      # Check kubectl availability before using it
+      if command -v kubectl >/dev/null 2>&1; then
+        echo "  - K8s API: $(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo 'Error') nodes"
+      else
+        echo "  - K8s API: kubectl not available"
+      fi
+      
+      # Check docker availability before using it
+      if command -v docker >/dev/null 2>&1; then
+        echo "  - Docker: $(docker ps --format 'table {{.Names}}' | wc -l || echo 'Error') containers"
+      else
+        echo "  - Docker: docker not available"
+      fi
+      
+      echo ""
+      echo "📊 Recent workflow logs:"
+      if [ -f /app/log/mcall/health_monitor.log ]; then
+        tail -10 /app/log/mcall/health_monitor.log
+      else
+        echo "  No logs found yet"
+      fi
+      echo "=================================================="
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] 📋 STATUS REPORT COMPLETED" >> /app/log/mcall/health_monitor.log
+
+---
+# Jenkins MCP Credentials Secret (Required for Jenkins build trigger)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-mcp-credentials
+  namespace: mcall-dev
+type: Opaque
+stringData:
+  username: "admin"
+  token: "11197fa40f409842983025803948aa6bcc"  # Replace with actual Jenkins API token

@@ -72,7 +72,8 @@ export function ApiTester() {
   useEffect(() => {
     const fetchNamespaces = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        // Use current origin for API calls (supports port-forwarding)
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const apiKey = (window as any).MCP_API_KEY || '';
         const res = await fetch(`${apiUrl}/api/namespaces`, {
           headers: apiKey ? { 'X-API-Key': apiKey } : {}
@@ -103,7 +104,8 @@ export function ApiTester() {
   const fetchWorkflows = useCallback(async (namespace: string) => {
     if (!namespace) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Use current origin for API calls (supports port-forwarding)
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       const apiKey = (window as any).MCP_API_KEY || '';
       const res = await fetch(`${apiUrl}/api/workflows/${namespace}`, {
         headers: apiKey ? { 'X-API-Key': apiKey } : {}
@@ -146,7 +148,8 @@ export function ApiTester() {
   const fetchTasks = useCallback(async (namespace: string) => {
     if (!namespace) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Use current origin for API calls (supports port-forwarding)
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       const apiKey = (window as any).MCP_API_KEY || '';
       const res = await fetch(`${apiUrl}/api/tasks/${namespace}`, {
         headers: apiKey ? { 'X-API-Key': apiKey } : {}
@@ -171,7 +174,8 @@ export function ApiTester() {
     setResponse(null);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Use current origin for API calls (supports port-forwarding)
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       let url = selectedEndpoint.path;
       
       // Replace path parameters
