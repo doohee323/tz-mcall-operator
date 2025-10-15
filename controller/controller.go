@@ -1088,8 +1088,13 @@ func (r *McallTaskReconciler) handlePending(ctx context.Context, task *mcallv1.M
 		}
 	}
 
-	// Check dependencies
-	if len(task.Spec.Dependencies) > 0 {
+	// Check dependencies (skip for conditional tasks as condition check handles execution control)
+	hasCondition := false
+	if conditionStr, exists := task.Annotations["mcall.tz.io/condition"]; exists && conditionStr != "" {
+		hasCondition = true
+	}
+
+	if len(task.Spec.Dependencies) > 0 && !hasCondition {
 		allDepsReady, err := r.checkDependencies(ctx, task)
 		if err != nil {
 			return ctrl.Result{}, err

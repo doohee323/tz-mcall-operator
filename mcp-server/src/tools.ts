@@ -66,6 +66,11 @@ export const DeleteWorkflowSchema = z.object({
   namespace: z.string().optional().describe("Kubernetes namespace (default: mcall-system)"),
 });
 
+export const TriggerBuildSchema = z.object({
+  jobFullName: z.string().describe("Full name of the Jenkins job (e.g., 'docker-test')"),
+  parameters: z.record(z.string()).optional().describe("Build parameters as key-value pairs"),
+});
+
 // Define available tools
 export const TOOLS: Tool[] = [
   {
@@ -196,6 +201,18 @@ export const TOOLS: Tool[] = [
       required: ["name"],
     },
   },
+  {
+    name: "triggerBuild",
+    description: "Trigger a Jenkins build and return detailed status information",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobFullName: { type: "string", description: "Full name of the Jenkins job (e.g., 'docker-test')" },
+        parameters: { type: "object", description: "Build parameters as key-value pairs" },
+      },
+      required: ["jobFullName"],
+    },
+  },
 ];
 
 export function setupToolHandlers(server: Server, k8sClient: KubernetesClient) {
@@ -317,6 +334,19 @@ export function setupToolHandlers(server: Server, k8sClient: KubernetesClient) {
         case "delete_mcall_workflow": {
           const params = DeleteWorkflowSchema.parse(args);
           const result = await k8sClient.deleteWorkflow(params.name, params.namespace);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "triggerBuild": {
+          const params = TriggerBuildSchema.parse(args);
+          const result = await k8sClient.triggerJenkinsBuild(params.jobFullName, params.parameters);
           return {
             content: [
               {

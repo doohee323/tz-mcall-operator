@@ -389,5 +389,91 @@ export class KubernetesClient {
       throw new Error(`Failed to delete workflow: ${error.body?.message || error.message}`);
     }
   }
+
+  async triggerJenkinsBuild(jobFullName: string, parameters?: Record<string, string>): Promise<any> {
+    const jenkinsUrl = process.env.JENKINS_URL || "https://jenkins.drillquiz.com";
+    const username = process.env.JENKINS_USERNAME || "admin";
+    const token = process.env.JENKINS_TOKEN || "11197fa40f409842983025803948aa6bcc";
+    
+    // Build Jenkins API URL
+    let buildUrl = `${jenkinsUrl}/job/${jobFullName}/build`;
+    
+    // Add parameters if provided
+    if (parameters && Object.keys(parameters).length > 0) {
+      const paramString = Object.entries(parameters)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&');
+      buildUrl += `WithParameters?${paramString}`;
+    }
+    
+    try {
+      const response = await fetch(buildUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          success: false,
+          error: `Jenkins API error: ${response.status} ${response.statusText}`,
+          details: errorText,
+          jobFullName,
+          buildUrl,
+          statusCode: response.status
+        };
+      }
+
+      // Check if job is disabled by looking for specific response patterns
+      const responseText = await response.text();
+      const isDisabled = responseText.includes('disabled') || 
+                        responseText.includes('This project is currently disabled') ||
+                        responseText.includes('disabled=true');
+
+      if (isDisabled) {
+        return {
+          success: false,
+          error: "Jenkins job is disabled",
+          details: "The requested Jenkins job is currently disabled and cannot be triggered",
+          jobFullName,
+          buildUrl,
+          statusCode: response.status,
+          jobDisabled: true
+        };
+      }
+
+      // Extract build number from Location header if available
+      const locationHeader = response.headers.get('Location');
+      let buildNumber = null;
+      if (locationHeader) {
+        const buildMatch = locationHeader.match(/\/build\/(\d+)/);
+        if (buildMatch) {
+          buildNumber = parseInt(buildMatch[1]);
+        }
+      }
+
+      return {
+        success: true,
+        message: "Jenkins build triggered successfully",
+        jobFullName,
+        buildUrl,
+        buildNumber,
+        statusCode: response.status,
+        location: locationHeader
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        error: `Failed to trigger Jenkins build: ${error.message}`,
+        jobFullName,
+        buildUrl,
+        details: error.toString()
+      };
+    }
+  }
 }
 

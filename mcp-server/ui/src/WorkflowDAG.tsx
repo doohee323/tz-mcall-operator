@@ -313,13 +313,62 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
       }
       
       if (currentTask) {
-        console.log('[DAG] 🔍 ✅ Task found! Creating task details...');
+        console.log('[DAG] 🔍 ✅ Task found! Fetching detailed task information...');
         console.log('[DAG] 🔍 Raw currentTask object:', currentTask);
         console.log('[DAG] 🔍 currentTask.data:', currentTask.data);
         console.log('[DAG] 🔍 currentTask.id:', currentTask.id);
         
-        // Create task details object from DAG node data
-        // Use the actual node structure from the DAG API response
+        // Generate actual task name using workflow-name pattern
+        const actualTaskName = `${currentWorkflowName}-${currentTask.id}`;
+        console.log('[DAG] 🔍 Generated actual task name:', actualTaskName);
+        
+        try {
+          // Fetch detailed task information from API
+          const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+          const apiKey = (window as any).MCP_API_KEY || '';
+          const response = await fetch(`${apiUrl}/api/tasks/${currentNamespace}/${actualTaskName}`, {
+            headers: apiKey ? { 'X-API-Key': apiKey } : {}
+          });
+          
+          if (response.ok) {
+            const taskData = await response.json();
+            console.log('[DAG] 🔍 Fetched task data from API:', taskData);
+            
+            if (taskData.success && taskData.data) {
+              const task = taskData.data;
+              const taskDetails = {
+                name: task.metadata?.name || currentTask.id,
+                namespace: task.metadata?.namespace || currentNamespace,
+                type: task.spec?.type || currentTask.type,
+                phase: task.status?.phase || currentTask.phase || 'Unknown',
+                input: task.spec?.input || currentTask.input,
+                output: task.status?.result?.output || currentTask.output,
+                errorMessage: task.status?.result?.errorMessage || currentTask.errorMessage,
+                startTime: task.status?.startTime || currentTask.startTime,
+                endTime: task.status?.completionTime || currentTask.endTime,
+                duration: task.status?.executionTimeMs || currentTask.duration,
+                errorCode: task.status?.result?.errorCode || currentTask.errorCode,
+                httpStatusCode: task.status?.httpStatusCode || currentTask.httpStatusCode,
+                dependencies: task.spec?.dependencies || [],
+                timeout: task.spec?.timeout,
+                resources: task.spec?.resources,
+                labels: task.metadata?.labels || {},
+                annotations: task.metadata?.annotations || {}
+              };
+              console.log('[DAG] 🔍 Task details created from API:', taskDetails);
+              setSelectedTask(taskDetails);
+              setShowTaskPopup(true);
+              console.log('[DAG] 🔍 ✅ Task popup opened successfully');
+              return;
+            }
+          }
+          
+          console.warn('[DAG] ⚠️ Failed to fetch task details from API, using DAG data');
+        } catch (error) {
+          console.warn('[DAG] ⚠️ Error fetching task details from API:', error);
+        }
+        
+        // Fallback: Create task details object from DAG node data
         const taskDetails = {
           name: currentTask.id || currentTask.data?.name,
           namespace: currentNamespace,
@@ -334,8 +383,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           errorCode: currentTask.data?.errorCode || currentTask.errorCode,
           httpStatusCode: currentTask.data?.httpStatusCode || currentTask.httpStatusCode
         };
-        console.log('[DAG] 🔍 Task details created:', taskDetails);
-        console.log('[DAG] 🔍 Task details JSON:', JSON.stringify(taskDetails, null, 2));
+        console.log('[DAG] 🔍 Task details created from DAG data (fallback):', taskDetails);
         setSelectedTask(taskDetails);
         setShowTaskPopup(true);
         console.log('[DAG] 🔍 ✅ Task popup opened successfully');
@@ -996,10 +1044,10 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                           <td style={{ padding: '8px' }}>{new Date(selectedTask.endTime || selectedTask.status?.completionTime).toLocaleString()}</td>
                         </tr>
                       )}
-                      {(selectedTask.duration || selectedTask.status?.executionTime) && (
+                      {(selectedTask.duration || selectedTask.status?.executionTimeMs) && (
                         <tr style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>Execution Time:</td>
-                          <td style={{ padding: '8px' }}>{selectedTask.duration || selectedTask.status?.executionTime}</td>
+                          <td style={{ padding: '8px' }}>{selectedTask.duration || selectedTask.status?.executionTimeMs}ms</td>
                         </tr>
                       )}
                     </tbody>

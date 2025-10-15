@@ -18,7 +18,8 @@ import {
   CreateWorkflowSchema,
   GetWorkflowSchema,
   ListWorkflowsSchema,
-  DeleteWorkflowSchema
+  DeleteWorkflowSchema,
+  TriggerBuildSchema
 } from "./tools.js";
 import dagApiRouter from "./dag-api.js";
 import { setupWebSocket } from "./dag-websocket.js";
@@ -197,6 +198,11 @@ app.post("/mcp", authService.authenticate(), async (req, res) => {
         case "delete_mcall_workflow": {
           const params = DeleteWorkflowSchema.parse(toolArgs);
           result = await k8sClient.deleteWorkflow(params.name, params.namespace);
+          break;
+        }
+        case "triggerBuild": {
+          const params = TriggerBuildSchema.parse(toolArgs);
+          result = await k8sClient.triggerJenkinsBuild(params.jobFullName, params.parameters);
           break;
         }
         default:

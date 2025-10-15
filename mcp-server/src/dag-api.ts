@@ -115,7 +115,8 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
         
         try {
           // Get individual McallTask status for this node
-          const taskName = node.taskRef?.name || node.name;
+          // Task names are generated as {workflow-name}-{node.name}
+          const taskName = `${name}-${node.name}`;
           if (taskName) {
             const task = await k8sClient.getTask(taskName, namespace);
             
