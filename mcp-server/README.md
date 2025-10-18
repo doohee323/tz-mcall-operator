@@ -33,6 +33,13 @@ Model Context Protocol (MCP) server for tz-mcall-operator. This server enables A
 3. **list_mcall_workflows**: List all workflows
 4. **delete_mcall_workflow**: Delete a workflow
 
+### Jenkins Integration
+
+1. **triggerBuild**: Trigger Jenkins build jobs
+   - Supports parameterized builds
+   - Automatic CSRF protection handling
+   - Returns build status and information
+
 ## Installation
 
 ### Prerequisites
@@ -62,6 +69,10 @@ helm upgrade --install mcall-operator ../helm/mcall-operator \
 
 - `KUBERNETES_SERVICE_HOST`: Auto-set when running in Kubernetes
 - `NODE_ENV`: Set to `production` for production deployments
+- `JENKINS_URL`: Jenkins server URL (default: https://jenkins.drillquiz.com)
+- `JENKINS_USERNAME`: Jenkins username for API authentication
+- `JENKINS_TOKEN`: Jenkins API token for authentication
+- `MCP_REQUIRE_AUTH`: Set to `false` to disable API key authentication (development only)
 
 ### Kubernetes RBAC
 
@@ -69,6 +80,80 @@ The MCP server requires the following permissions:
 - Read/Write access to `mcalltasks.mcall.tz.io`
 - Read/Write access to `mcallworkflows.mcall.tz.io`
 - Read access to pods (for log retrieval)
+
+## Client Configuration
+
+### Claude Desktop Configuration
+
+Add the MCP server to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "mcall-operator": {
+      "command": "mcp-proxy",
+      "args": ["--transport", "streamablehttp", "--headers", "Authorization", "Bearer YOUR_API_KEY", "https://mcp.drillquiz.com/mcp"],
+      "env": {
+        "API_ACCESS_TOKEN": "YOUR_API_KEY"
+      },
+      "description": "Kubernetes Task and Workflow Manager"
+    }
+  }
+}
+```
+
+### MCP Proxy Usage
+
+The MCP server supports `mcp-proxy` with streamable HTTP transport:
+
+```bash
+# Install mcp-proxy
+pip install mcp-proxy
+
+# Connect to MCP server
+mcp-proxy --transport streamablehttp \
+  --headers "Authorization" "Bearer YOUR_API_KEY" \
+  https://mcp.drillquiz.com/mcp
+
+# For local development
+mcp-proxy --transport streamablehttp \
+  --headers "Authorization" "Bearer dev-key-123" \
+  http://localhost:3000/mcp
+```
+
+### Direct HTTP API Usage
+
+You can also use the MCP server directly via HTTP:
+
+```bash
+# Initialize connection
+curl -X POST https://mcp.drillquiz.com/mcp \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "test-client",
+        "version": "1.0.0"
+      }
+    }
+  }'
+
+# List available tools
+curl -X POST https://mcp.drillquiz.com/mcp \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list"
+  }'
+```
 
 ## Usage Examples
 
@@ -124,6 +209,55 @@ The MCP server requires the following permissions:
         "type": "post",
         "input": "https://slack.com/webhook",
         "dependencies": ["run-tests"]
+      }
+    ]
+  }
+}
+```
+
+### Trigger Jenkins Build
+
+```json
+{
+  "name": "triggerBuild",
+  "arguments": {
+    "jobFullName": "my-project/my-job",
+    "parameters": {
+      "BRANCH": "main",
+      "ENVIRONMENT": "production"
+    }
+  }
+}
+```
+
+### Jenkins Integration in Workflow
+
+```json
+{
+  "name": "create_mcall_workflow",
+  "arguments": {
+    "name": "ci-cd-workflow",
+    "tasks": [
+      {
+        "name": "trigger-jenkins-build",
+        "type": "mcp-client",
+        "input": "triggerBuild",
+        "args": {
+          "jobFullName": "my-project/build",
+          "parameters": {
+            "BRANCH": "main"
+          }
+        }
+      },
+      {
+        "name": "check-build-status",
+        "type": "mcp-client",
+        "input": "getJenkinsBuildStatus",
+        "args": {
+          "jobFullName": "my-project/build",
+          "buildNumber": "latest"
+        },
+        "dependencies": ["trigger-jenkins-build"]
       }
     ]
   }
