@@ -113,37 +113,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   // const cacheKey = `dag-cache-${currentNamespace}-${currentWorkflowName}`;
   // const historyKey = `dag-history-${currentNamespace}-${currentWorkflowName}`;
 
-  // Load cached DAG from localStorage on mount - CACHE DISABLED
-  // const [lastValidDAG, setLastValidDAG] = useState<any>(() => {
-  //   // CACHE DISABLED - Always return null to force fresh data
-  //   console.log('[DAG] 🚫 Cache disabled - forcing fresh data');
-  //   return null;
-  //   
-  //   /* CACHE CODE COMMENTED OUT
-  //   try {
-  //     const cached = localStorage.getItem(cacheKey);
-  //     console.log('[DAG] 🔍 Checking localStorage for cacheKey:', cacheKey);
-  //     console.log('[DAG] 🔍 Cached data exists:', !!cached);
-  //     if (cached) {
-  //       const parsedDAG = JSON.parse(cached);
-  //       console.log('[DAG] 📦 Loaded from localStorage:', {
-  //         nodes: parsedDAG.nodes?.length || 0,
-  //         runID: parsedDAG.runID,
-  //         timestamp: parsedDAG.timestamp,
-  //         workflowPhase: parsedDAG.workflowPhase
-  //       });
-  //       console.log('[DAG] 📦 Full cached DAG:', parsedDAG);
-  //       return parsedDAG;
-  //     } else {
-  //       console.log('[DAG] 📦 No cache found in localStorage for key:', cacheKey);
-  //       return null;
-  //     }
-  //   } catch (e) {
-  //     console.warn('[DAG] ❌ Failed to load from localStorage:', e);
-  //     return null;
-  //   }
-  //   */
-  // });
+  // CACHE COMPLETELY DISABLED - No lastValidDAG state
 
   // Load history from localStorage - CACHE DISABLED
   // const loadHistoryFromStorage = useCallback(() => {
@@ -468,6 +438,15 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         
         // CACHE DISABLED - Always use fresh data from API
         console.log('[DAG] 🚫 Cache disabled - using fresh API data only');
+        console.log('[DAG] 🔍 Fresh API data received:', {
+          hasData: !!data,
+          hasDag: !!data?.dag,
+          runID: data?.dag?.runID,
+          timestamp: data?.dag?.timestamp,
+          nodesCount: data?.dag?.nodes?.length || 0,
+          edgesCount: data?.dag?.edges?.length || 0,
+          workflowPhase: data?.dag?.workflowPhase
+        });
         const localHistory: any[] = []; // Empty history
         setDAGHistory(localHistory);
 
@@ -493,6 +472,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
           }
         }
 
+        /* CACHE CODE COMMENTED OUT - lastValidDAG references
         // Check if we should show stale data
         // IMPORTANT: Only use cache if API returned empty data AND we're not forcing refresh
         // If API returned data with a different runID, we should use that instead of cache

@@ -77,10 +77,13 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     // Force refresh by adding cache-busting parameters
     const forceRefresh = req.query.force === 'true' || req.query.refresh === 'true';
     
+    console.log(`[DAG-API] 🔄 ========== DAG REQUEST START ==========`);
     console.log(`[DAG-API] 🔄 Fetching workflow ${namespace}/${name}, forceRefresh: ${forceRefresh}`);
     console.log(`[DAG-API] 🕐 Request timestamp: ${new Date().toISOString()}`);
     console.log(`[DAG-API] 🔗 Request URL: ${req.url}`);
     console.log(`[DAG-API] 📋 Query params:`, req.query);
+    console.log(`[DAG-API] 🌐 Request headers:`, req.headers);
+    console.log(`[DAG-API] 🔑 API Key present:`, !!req.headers['x-api-key']);
     
     let workflow;
     try {
@@ -128,14 +131,18 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     }
     
     // Log raw workflow status for debugging
+    console.log('[DAG-API] 📊 ========== WORKFLOW DATA ==========');
     console.log('[DAG-API] 📊 Raw workflow.metadata:', JSON.stringify(workflow.metadata, null, 2));
     console.log('[DAG-API] 📊 Raw workflow.status:', JSON.stringify(workflow.status, null, 2));
     console.log('[DAG-API] 🔗 workflow.status.dag:', JSON.stringify(workflow.status?.dag, null, 2));
     console.log('[DAG-API] 🆔 workflow.status.dag.runID:', workflow.status?.dag?.runID);
     console.log('[DAG-API] 📅 workflow.status.lastRunTime:', workflow.status?.lastRunTime);
     console.log('[DAG-API] ⏰ workflow.status.startTime:', workflow.status?.startTime);
+    console.log('[DAG-API] 📊 workflow.status.phase:', workflow.status?.phase);
+    console.log('[DAG-API] 📊 workflow.spec:', JSON.stringify(workflow.spec, null, 2));
     
     // Extract DAG from workflow status
+    console.log('[DAG-API] 🔍 ========== DAG EXTRACTION ==========');
     const dag = workflow.status?.dag || {
       nodes: [],
       edges: [],
@@ -150,6 +157,11 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
         skippedCount: 0
       }
     };
+    
+    console.log('[DAG-API] 🔍 Raw DAG from workflow.status:', JSON.stringify(dag, null, 2));
+    console.log('[DAG-API] 🔍 DAG nodes count:', dag.nodes?.length || 0);
+    console.log('[DAG-API] 🔍 DAG edges count:', dag.edges?.length || 0);
+    console.log('[DAG-API] 🔍 DAG metadata:', JSON.stringify(dag.metadata, null, 2));
     
     // Enhance nodes with detailed error information from individual McallTasks
     if (dag.nodes && dag.nodes.length > 0) {
@@ -199,6 +211,7 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     console.log('[DAG-API] ✅ Extracted DAG nodes:', dag.nodes?.length || 0, 'edges:', dag.edges?.length || 0);
     
     // Build response with workflow info and DAG
+    console.log('[DAG-API] 🚀 ========== BUILDING RESPONSE ==========');
     const response = {
       success: true,
       workflow: {
@@ -213,7 +226,11 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
       dag: dag
     };
     
-    console.log('[DAG-API] 🚀 Sending response - nodes:', response.dag.nodes?.length, 'edges:', response.dag.edges?.length);
+    console.log('[DAG-API] 🚀 Response workflow info:', JSON.stringify(response.workflow, null, 2));
+    console.log('[DAG-API] 🚀 Response DAG nodes count:', response.dag.nodes?.length || 0);
+    console.log('[DAG-API] 🚀 Response DAG edges count:', response.dag.edges?.length || 0);
+    console.log('[DAG-API] 🚀 Response DAG metadata:', JSON.stringify(response.dag.metadata, null, 2));
+    console.log('[DAG-API] 🚀 ========== SENDING RESPONSE ==========');
     
     res.json(response);
   } catch (error) {

@@ -317,6 +317,11 @@ export class KubernetesClient {
   async getWorkflow(name: string, namespace?: string, forceRefresh: boolean = false): Promise<any> {
     const ns = this.getNamespace(namespace);
     
+    console.log(`[K8sClient] 🔍 ========== GET WORKFLOW START ==========`);
+    console.log(`[K8sClient] 🔍 Workflow: ${ns}/${name}`);
+    console.log(`[K8sClient] 🔍 Force refresh: ${forceRefresh}`);
+    console.log(`[K8sClient] 🔍 Timestamp: ${new Date().toISOString()}`);
+    
     try {
       if (forceRefresh) {
         console.log(`[K8sClient] 🔄 Force refreshing workflow ${ns}/${name}`);
@@ -334,6 +339,10 @@ export class KubernetesClient {
           
           const { stdout } = await execAsync(kubectlCmd);
           const workflow = JSON.parse(stdout);
+          
+          console.log(`[K8sClient] 🔧 Method 1 success - workflow found via kubectl`);
+          console.log(`[K8sClient] 🔧 Workflow metadata:`, JSON.stringify(workflow.metadata, null, 2));
+          console.log(`[K8sClient] 🔧 Workflow status:`, JSON.stringify(workflow.status, null, 2));
           
           console.log(`[K8sClient] ✅ Method 1 SUCCESS - runID: ${workflow.status?.dag?.runID}`);
           console.log(`[K8sClient] 📊 Method 1 - lastRunTime: ${workflow.status?.lastRunTime}`);

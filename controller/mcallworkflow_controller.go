@@ -1092,17 +1092,8 @@ func isJSONLikeForUI(s string) bool {
 	// Trim whitespace
 	s = strings.TrimSpace(s)
 
-	// Check if it starts and ends with JSON delimiters
-	if (strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) ||
-		(strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) {
-		// Additional check: try to parse as JSON
-		var temp interface{}
-		if err := json.Unmarshal([]byte(s), &temp); err == nil {
-			return true
-		}
-	}
-
-	return false
+	// If it starts with { or [, treat it as JSON regardless of ending
+	return strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[")
 }
 
 // formatDuration formats duration in human-readable format
