@@ -891,7 +891,7 @@ func (r *McallWorkflowReconciler) buildWorkflowDAG(ctx context.Context, workflow
 
 			// Task result
 			if task.Status.Result != nil {
-				node.Output = truncateForUI(task.Status.Result.Output, 500)
+				node.Output = truncateForUI(task.Status.Result.Output, 500) // Smart truncation: JSON gets 100KB, non-JSON gets 500 bytes
 				node.ErrorCode = task.Status.Result.ErrorCode
 				node.ErrorMessage = task.Status.Result.ErrorMessage
 			}
@@ -1068,11 +1068,41 @@ func (r *McallWorkflowReconciler) calculateNodePositions(workflow *mcallv1.Mcall
 }
 
 // truncateForUI truncates string for UI display
+// If the string looks like JSON, use a much larger limit to preserve JSON structure
 func truncateForUI(s string, maxLen int) string {
+	// Check if the string looks like JSON
+	if isJSONLikeForUI(s) {
+		// For JSON-like content, use a much larger limit (100KB)
+		jsonMaxLen := 100000
+		if len(s) <= jsonMaxLen {
+			return s
+		}
+		return s[:jsonMaxLen] + "..."
+	}
+
+	// For non-JSON content, use the original limit
 	if len(s) <= maxLen {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// isJSONLikeForUI checks if a string looks like JSON
+func isJSONLikeForUI(s string) bool {
+	// Trim whitespace
+	s = strings.TrimSpace(s)
+
+	// Check if it starts and ends with JSON delimiters
+	if (strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) ||
+		(strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) {
+		// Additional check: try to parse as JSON
+		var temp interface{}
+		if err := json.Unmarshal([]byte(s), &temp); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // formatDuration formats duration in human-readable format

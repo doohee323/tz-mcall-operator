@@ -82,7 +82,50 @@ router.get('/workflows/:namespace/:name/dag', async (req, res) => {
     console.log(`[DAG-API] 🔗 Request URL: ${req.url}`);
     console.log(`[DAG-API] 📋 Query params:`, req.query);
     
-    const workflow = await k8sClient.getWorkflow(name, namespace, forceRefresh);
+    let workflow;
+    try {
+      workflow = await k8sClient.getWorkflow(name, namespace, forceRefresh);
+    } catch (error: any) {
+      // If workflow not found, return empty DAG instead of 500 error
+      if (error.message.includes('not found')) {
+        console.log(`[DAG-API] ⚠️ Workflow ${namespace}/${name} not found, returning empty DAG`);
+        
+        const emptyDag = {
+          nodes: [],
+          edges: [],
+          layout: 'dagre',
+          metadata: {
+            totalNodes: 0,
+            totalEdges: 0,
+            successCount: 0,
+            failureCount: 0,
+            runningCount: 0,
+            pendingCount: 0,
+            skippedCount: 0
+          }
+        };
+        
+        return res.json({
+          success: true,
+          workflow: {
+            name: name,
+            namespace: namespace,
+            phase: 'NotFound',
+            startTime: null,
+            completionTime: null,
+            schedule: null,
+            lastRunTime: null
+          },
+          dag: emptyDag,
+          workflowPhase: 'NotFound',
+          dagNodes: 0,
+          dagEdges: 0,
+          dagRunID: null
+        });
+      }
+      // Re-throw other errors
+      throw error;
+    }
     
     // Log raw workflow status for debugging
     console.log('[DAG-API] 📊 Raw workflow.metadata:', JSON.stringify(workflow.metadata, null, 2));

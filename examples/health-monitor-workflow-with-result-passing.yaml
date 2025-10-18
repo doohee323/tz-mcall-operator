@@ -166,6 +166,83 @@ spec:
       dependentTask: log-failure
       when: success
 
+  # Task 5: Check Jenkins Build Status (runs after trigger-jenkins-recovery)
+  - name: check-jenkins-build-status
+    taskRef:
+      name: jenkins-build-status-template
+      namespace: mcall-dev
+    dependencies:
+      - trigger-jenkins-recovery
+    condition:
+      dependentTask: trigger-jenkins-recovery
+      when: success
+
+  # Task 6: Check Jenkins Project Status (runs after check-jenkins-build-status)
+  - name: check-jenkins-project-status
+    taskRef:
+      name: jenkins-project-status-template
+      namespace: mcall-dev
+    dependencies:
+      - check-jenkins-build-status
+    condition:
+      dependentTask: check-jenkins-build-status
+      when: success
+
+---
+# Jenkins Build Status Check Template
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-build-status-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "getBuild"
+    arguments:
+      jobFullName: "docker-test"
+      # buildNumber 생략 = last build
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+  failFast: false
+
+---
+# Jenkins Project Status Check Template
+apiVersion: mcall.tz.io/v1
+kind: McallTask
+metadata:
+  name: jenkins-project-status-template
+  namespace: mcall-dev
+spec:
+  type: mcp-client
+  input: ""
+  mcpConfig:
+    serverUrl: "https://jenkins.drillquiz.com/mcp-server/mcp"
+    toolName: "getJob"
+    arguments:
+      jobFullName: "docker-test"
+    auth:
+      type: "basic"
+      secretRef:
+        name: jenkins-mcp-credentials
+        namespace: mcall-dev
+      usernameKey: "username"
+      passwordKey: "token"
+    headers:
+      Accept: "text/event-stream, application/json"
+    connectionTimeout: 30
+  failFast: false
+
 ---
 # Jenkins MCP Credentials Secret (Required for Jenkins build trigger)
 apiVersion: v1

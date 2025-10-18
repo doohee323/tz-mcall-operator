@@ -42,11 +42,22 @@ export class KubernetesClient {
     // Load kubeconfig from default location or in-cluster
     if (process.env.KUBERNETES_SERVICE_HOST) {
       // Running inside Kubernetes cluster
+      console.log('[K8s-Client] 🏗️ Running inside Kubernetes cluster');
+      console.log('[K8s-Client] 🌐 KUBERNETES_SERVICE_HOST:', process.env.KUBERNETES_SERVICE_HOST);
       this.kc.loadFromCluster();
     } else {
       // Running outside cluster, load from default kubeconfig
+      console.log('[K8s-Client] 🏠 Running outside cluster, loading from default kubeconfig');
+      console.log('[K8s-Client] 📁 KUBECONFIG:', process.env.KUBECONFIG || '~/.kube/config');
       this.kc.loadFromDefault();
     }
+
+    // Log current context and cluster info
+    const currentContext = this.kc.getCurrentContext();
+    const cluster = this.kc.getCluster(currentContext);
+    console.log('[K8s-Client] 🎯 Current context:', currentContext);
+    console.log('[K8s-Client] 🌐 Cluster server:', cluster?.server || 'unknown');
+    console.log('[K8s-Client] 📋 Namespace:', cluster?.name || 'unknown');
 
     this.k8sApi = this.kc.makeApiClient(k8s.CustomObjectsApi);
     this.coreApi = this.kc.makeApiClient(k8s.CoreV1Api);
@@ -172,7 +183,28 @@ export class KubernetesClient {
 
       if (task.status.result) {
         logs += `Result:\n`;
-        logs += `- Output: ${task.status.result.output || "N/A"}\n`;
+        
+        // Format JSON output if it looks like JSON
+        let output = task.status.result.output || "N/A";
+        if (output !== "N/A" && output.startsWith('{') && output.includes('"')) {
+          try {
+            // Try to parse and format JSON
+            const jsonObj = JSON.parse(output);
+            output = JSON.stringify(jsonObj, null, 2);
+            logs += `- Output (Formatted JSON):\n${output}\n`;
+          } catch (e) {
+            // If JSON parsing fails, check if it's truncated
+            if (output.endsWith('...') || output.length > 500) {
+              logs += `- Output (Truncated JSON - ${output.length} chars):\n${output}\n`;
+              logs += `- Note: Output appears to be truncated. Full output may be available in pod logs.\n`;
+            } else {
+              logs += `- Output: ${output}\n`;
+            }
+          }
+        } else {
+          logs += `- Output: ${output}\n`;
+        }
+        
         logs += `- Error Code: ${task.status.result.errorCode || "N/A"}\n`;
         logs += `- Error Message: ${task.status.result.errorMessage || "N/A"}\n`;
       }

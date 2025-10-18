@@ -69,22 +69,12 @@ func (cs *CronScheduler) ShouldRun(ctx context.Context, workflow *mcallv1.McallW
 		return false, err
 	}
 
-	// Check if this is the first run - but still respect the schedule
+	// Check if this is the first run - allow immediate execution for scheduled workflows
 	if workflow.Status.LastRunTime == nil {
-		log.Info("First run of scheduled workflow - checking if schedule allows immediate execution", "workflow", workflow.Name, "schedule", workflow.Spec.Schedule)
-		// For first run, check if current time matches the cron schedule
-		// This ensures scheduled workflows don't run immediately unless the schedule allows it
-		now := time.Now()
-		nextRun, err := cs.calculateNextRun(cron, time.Time{}) // Use zero time for first run calculation
-		if err != nil {
-			log.Error(err, "Failed to calculate first run time", "workflow", workflow.Name)
-			return false, err
-		}
-
-		// Only run if the schedule allows it (e.g., */1 should run every minute)
-		shouldRun := now.After(nextRun) || now.Equal(nextRun)
-		log.Info("First run schedule check", "workflow", workflow.Name, "nextRun", nextRun, "now", now, "shouldRun", shouldRun)
-		return shouldRun, nil
+		log.Info("First run of scheduled workflow - allowing immediate execution", "workflow", workflow.Name, "schedule", workflow.Spec.Schedule)
+		// For first run, always allow immediate execution to get the workflow started
+		// This ensures scheduled workflows start running as soon as they are created
+		return true, nil
 	}
 
 	// Calculate next run time

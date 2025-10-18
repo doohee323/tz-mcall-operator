@@ -419,6 +419,12 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
     // Define fetchDAG function inside useEffect to avoid dependency issues
     const fetchDAGInternal = async (forceRefresh: boolean = false) => {
       try {
+        // Skip API call if namespace or workflow name is empty
+        if (!currentNamespace || !currentWorkflowName) {
+          console.log('[DAG] ⚠️ Skipping API call - namespace or workflow name is empty');
+          return;
+        }
+        
         // Use current origin for API calls (supports port-forwarding)
         const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const apiKey = (window as any).MCP_API_KEY || '';
@@ -672,6 +678,17 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
       setIsConnected(false);
     };
   }, [currentNamespace, currentWorkflowName, selectedRunID]);
+
+  // Control auto-refresh based on workflow status
+  useEffect(() => {
+    if (workflow?.phase === 'NotFound') {
+      console.log('[DAG] 🛑 Stopping auto-refresh - workflow not found');
+      setIsConnected(false);
+    } else if (workflow?.phase && workflow.phase !== 'NotFound') {
+      console.log('[DAG] 🟢 Starting auto-refresh - workflow found');
+      setIsConnected(true);
+    }
+  }, [workflow?.phase]);
 
   // Set zoom when nodes are updated
   useEffect(() => {
@@ -1090,19 +1107,136 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
                   {(selectedTask.output || selectedTask.status?.result?.output) && (
                     <div>
                       <h4 style={{ fontSize: '14px', marginBottom: '8px', color: '#666' }}>Output:</h4>
-                      <pre style={{
-                        textAlign: 'left',
-                        backgroundColor: '#f5f5f5',
-                        padding: '10px',
-                        borderRadius: '4px',
-                        overflow: 'auto',
-                        fontSize: '11px',
-                        maxHeight: '300px',
-                        wordBreak: 'break-all',
-                        whiteSpace: 'pre-wrap'
-                      }}>
-                        {selectedTask.output || selectedTask.status?.result?.output}
-                      </pre>
+                      {(() => {
+                        const output = selectedTask.output || selectedTask.status?.result?.output;
+                        console.log('[JSON-FORMAT] 🔍 Raw output:', output);
+                        console.log('[JSON-FORMAT] 🔍 Output type:', typeof output);
+                        console.log('[JSON-FORMAT] 🔍 Output length:', output?.length);
+                        
+                        let formattedOutput = output;
+                        let isJson = false;
+                        let isTruncated = false;
+                        
+                        // Check if output looks like JSON
+                        if (output && typeof output === 'string' && output.trim().startsWith('{')) {
+                          console.log('[JSON-FORMAT] 🔍 Detected JSON-like output');
+                          console.log('[JSON-FORMAT] 📏 Output length:', output.length);
+                          console.log('[JSON-FORMAT] 🔚 Ends with dots:', output.endsWith('...'));
+                          
+                          // Check if it's truncated
+                          if (output.endsWith('...') || output.length > 500) {
+                            isTruncated = true;
+                            console.log('[JSON-FORMAT] ⚠️ Output appears to be truncated');
+                            console.log('[JSON-FORMAT] 📊 Truncation details:', {
+                              endsWithDots: output.endsWith('...'),
+                              length: output.length,
+                              isLong: output.length > 500
+                            });
+                          }
+                          
+                          // Try to parse as JSON and format it
+                          try {
+                            console.log('[JSON-FORMAT] 🔄 Attempting JSON.parse...');
+                            console.log('[JSON-FORMAT] 📝 Raw output to parse:', output.substring(0, 100) + '...');
+                            const parsed = JSON.parse(output);
+                            console.log('[JSON-FORMAT] ✅ JSON.parse successful');
+                            console.log('[JSON-FORMAT] 📦 Parsed object keys:', Object.keys(parsed));
+                            formattedOutput = JSON.stringify(parsed, null, 2);
+                            isJson = true;
+                            console.log('[JSON-FORMAT] ✅ JSON formatting applied');
+                            console.log('[JSON-FORMAT] 📏 Formatted length:', formattedOutput.length);
+                          } catch (e) {
+                            console.log('[JSON-FORMAT] ❌ JSON.parse failed:', e instanceof Error ? e.message : String(e));
+                            console.log('[JSON-FORMAT] 🔍 Error details:', {
+                              name: e instanceof Error ? e.name : 'Unknown',
+                              message: e instanceof Error ? e.message : String(e),
+                              stack: e instanceof Error ? e.stack : undefined
+                            });
+                            
+                            // Try to fix truncated JSON
+                            if (isTruncated) {
+                              console.log('[JSON-FORMAT] 🔄 Attempting to fix truncated JSON...');
+                              try {
+                                let fixedOutput = output.trim();
+                                console.log('[JSON-FORMAT] 🧹 After trim:', fixedOutput.substring(0, 100) + '...');
+                                
+                                // Remove trailing dots
+                                fixedOutput = fixedOutput.replace(/\.\.\.$/, '');
+                                console.log('[JSON-FORMAT] ✂️ After removing dots:', fixedOutput.substring(0, 100) + '...');
+                                
+                                // Try to close incomplete JSON structures
+                                if (fixedOutput.startsWith('{')) {
+                                  // Count braces to see if we need to close
+                                  const openBraces = (fixedOutput.match(/\{/g) || []).length;
+                                  const closeBraces = (fixedOutput.match(/\}/g) || []).length;
+                                  
+                                  console.log('[JSON-FORMAT] 🔢 Brace count:', { openBraces, closeBraces });
+                                  
+                                  if (openBraces > closeBraces) {
+                                    // Add missing closing braces
+                                    const missingBraces = openBraces - closeBraces;
+                                    console.log('[JSON-FORMAT] ➕ Adding', missingBraces, 'missing closing braces');
+                                    for (let i = 0; i < missingBraces; i++) {
+                                      fixedOutput += '}';
+                                    }
+                                  }
+                                  
+                                  // Try to close incomplete string values
+                                  if (fixedOutput.match(/"[^"]*$/)) {
+                                    console.log('[JSON-FORMAT] 🔤 Closing incomplete string');
+                                    fixedOutput += '"';
+                                  }
+                                }
+                                
+                                console.log('[JSON-FORMAT] 🔧 Final fixed output:', fixedOutput.substring(0, 200) + '...');
+                                
+                                const parsed = JSON.parse(fixedOutput);
+                                console.log('[JSON-FORMAT] ✅ Fixed JSON parsed successfully');
+                                console.log('[JSON-FORMAT] 📦 Fixed object keys:', Object.keys(parsed));
+                                formattedOutput = JSON.stringify(parsed, null, 2);
+                                isJson = true;
+                                console.log('[JSON-FORMAT] ✅ Truncated JSON fixed and formatted');
+                                console.log('[JSON-FORMAT] 📏 Final formatted length:', formattedOutput.length);
+                              } catch (e2) {
+                                console.log('[JSON-FORMAT] ❌ Failed to fix truncated JSON:', e2 instanceof Error ? e2.message : String(e2));
+                                console.log('[JSON-FORMAT] 🔍 Fix error details:', {
+                                  name: e2 instanceof Error ? e2.name : 'Unknown',
+                                  message: e2 instanceof Error ? e2.message : String(e2)
+                                });
+                                // Show raw output with truncation warning
+                                formattedOutput = output + '\n\n⚠️ Note: This JSON appears to be truncated. Full output may be available in pod logs.';
+                                console.log('[JSON-FORMAT] ⚠️ Using raw output with warning');
+                              }
+                            } else {
+                              console.log('[JSON-FORMAT] 🔄 Using raw output as-is (not truncated)');
+                            }
+                          }
+                        } else {
+                          console.log('[JSON-FORMAT] 🔄 Output does not appear to be JSON, using as-is');
+                          console.log('[JSON-FORMAT] 🔍 Output type:', typeof output);
+                          console.log('[JSON-FORMAT] 🔍 Starts with {:', output?.startsWith?.('{'));
+                        }
+                        
+                        return (
+                          <pre style={{
+                            textAlign: 'left',
+                            backgroundColor: isJson ? '#f8f9fa' : '#f5f5f5',
+                            padding: '10px',
+                            borderRadius: '4px',
+                            overflow: 'auto',
+                            fontSize: '11px',
+                            maxHeight: '400px',
+                            wordBreak: isJson ? 'normal' : 'break-all',
+                            whiteSpace: 'pre-wrap',
+                            border: isJson ? '1px solid #e9ecef' : 'none',
+                            fontFamily: isJson ? 'Monaco, Menlo, "Ubuntu Mono", monospace' : 'inherit',
+                            lineHeight: '1.4',
+                            maxWidth: '100%'
+                          }}>
+                            {formattedOutput}
+                          </pre>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

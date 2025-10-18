@@ -250,8 +250,8 @@ app.post("/mcp", authService.authenticate(), async (req, res) => {
 });
 
 // Start server
-httpServer.listen(PORT, () => {
-  console.log(`MCP Server listening on port ${PORT}`);
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`MCP Server listening on port ${PORT} (IPv4/IPv6)`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Ready check: http://localhost:${PORT}/ready`);
   console.log(`MCP endpoint: http://localhost:${PORT}/mcp`);

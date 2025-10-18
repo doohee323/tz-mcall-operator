@@ -2239,14 +2239,27 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 	var resultTexts []string
 	for i, content := range mcpResponse.Result.Content {
 		if content.Type == "text" {
-			// Limit each text content to prevent overflow
-			maxLen := 10000 // 10KB per item
-			if len(content.Text) > maxLen {
-				truncated := content.Text[:maxLen] + fmt.Sprintf("... [truncated, original length: %d bytes]", len(content.Text))
-				resultTexts = append(resultTexts, truncated)
-				logger.Info("Truncated large content", "item", i, "originalLength", len(content.Text))
+			// Check if content looks like JSON
+			if isJSONLike(content.Text) {
+				// For JSON-like content, use a much larger limit (500KB)
+				maxLen := 500000
+				if len(content.Text) > maxLen {
+					truncated := content.Text[:maxLen] + fmt.Sprintf("... [truncated, original length: %d bytes]", len(content.Text))
+					resultTexts = append(resultTexts, truncated)
+					logger.Info("Truncated large JSON content", "item", i, "originalLength", len(content.Text))
+				} else {
+					resultTexts = append(resultTexts, content.Text)
+				}
 			} else {
-				resultTexts = append(resultTexts, content.Text)
+				// For non-JSON content, use a smaller limit (10KB)
+				maxLen := 10000
+				if len(content.Text) > maxLen {
+					truncated := content.Text[:maxLen] + fmt.Sprintf("... [truncated, original length: %d bytes]", len(content.Text))
+					resultTexts = append(resultTexts, truncated)
+					logger.Info("Truncated large non-JSON content", "item", i, "originalLength", len(content.Text))
+				} else {
+					resultTexts = append(resultTexts, content.Text)
+				}
 			}
 		}
 	}
@@ -2262,4 +2275,22 @@ func (r *McallTaskReconciler) executeMCPClient(ctx context.Context, task *mcallv
 	// Return full response if no text content found
 	logger.Info("No text content found, returning raw response")
 	return string(toolBody), nil
+}
+
+// isJSONLike checks if a string looks like JSON
+func isJSONLike(s string) bool {
+	// Trim whitespace
+	s = strings.TrimSpace(s)
+
+	// Check if it starts and ends with JSON delimiters
+	if (strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) ||
+		(strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) {
+		// Additional check: try to parse as JSON
+		var temp interface{}
+		if err := json.Unmarshal([]byte(s), &temp); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
