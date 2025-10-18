@@ -90,36 +90,118 @@ app.get("/", (req, res) => {
 
 // MCP endpoint using SSE - auth required
 app.get("/mcp", authService.authenticate(), async (req, res) => {
-  console.log("New MCP client connected");
+  console.log("New MCP client connected via GET");
 
-  const k8sClient = new KubernetesClient();
-  const server = new Server(
-    {
-      name: "mcall-operator-mcp-server",
-      version: "1.0.0",
-    },
-    {
-      capabilities: {
-        tools: {},
+  // Check if this is a streamable HTTP request (mcp-proxy)
+  const acceptHeader = req.headers.accept || '';
+  if (acceptHeader.includes('text/event-stream')) {
+    console.log("SSE connection detected");
+    
+    const k8sClient = new KubernetesClient();
+    const server = new Server(
+      {
+        name: "mcall-operator-mcp-server",
+        version: "1.0.0",
       },
-    }
-  );
+      {
+        capabilities: {
+          tools: {},
+        },
+      }
+    );
 
-  // Set up tool handlers
-  setupToolHandlers(server, k8sClient);
+    // Set up tool handlers
+    setupToolHandlers(server, k8sClient);
 
-  const transport = new SSEServerTransport("/mcp", res);
-  await server.connect(transport);
+    const transport = new SSEServerTransport("/mcp", res);
+    await server.connect(transport);
 
-  req.on("close", () => {
-    console.log("MCP client disconnected");
-  });
+    req.on("close", () => {
+      console.log("MCP client disconnected");
+    });
+  } else {
+    // For mcp-proxy streamable HTTP, return server info
+    console.log("Streamable HTTP connection detected");
+    res.status(200).json({
+      jsonrpc: "2.0",
+      result: {
+        serverInfo: {
+          name: "mcall-operator-mcp-server",
+          version: "1.0.0"
+        },
+        capabilities: {
+          tools: {}
+        }
+      }
+    });
+  }
+});
+
+// Handle DELETE requests for session cleanup
+app.delete("/mcp", authService.authenticate(), async (req, res) => {
+  console.log("MCP DELETE request received (session cleanup)");
+  res.status(200).json({ status: "ok", message: "Session cleaned up" });
 });
 
 app.post("/mcp", authService.authenticate(), async (req, res) => {
   console.log("MCP POST message received");
   
   try {
+    // Handle initialize request
+    if (req.body.method === "initialize") {
+      console.log("Handling initialize request");
+      
+      // Generate session ID
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Set session ID in response header
+      res.setHeader('mcp-session-id', sessionId);
+      
+      // Send proper JSON-RPC initialize response
+      res.status(200).json({
+        jsonrpc: "2.0",
+        id: req.body.id,
+        result: {
+          protocolVersion: "2024-11-05",
+          capabilities: {
+            tools: {}
+          },
+          serverInfo: {
+            name: "mcall-operator-mcp-server",
+            version: "1.0.0"
+          }
+        }
+      });
+      return;
+    }
+    
+    // Handle notifications/initialized
+    if (req.body.method === "notifications/initialized") {
+      console.log("Handling notifications/initialized");
+      // For notifications, we don't send a response (it's a one-way message)
+      // But mcp-proxy expects a JSON response, so send empty object
+      res.status(200).json({});
+      return;
+    }
+    
+    // Handle tools/list request
+    if (req.body.method === "tools/list") {
+      console.log("Handling tools/list request");
+      
+      res.status(200).json({
+        jsonrpc: "2.0",
+        id: req.body.id,
+        result: {
+          tools: TOOLS.map(tool => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema
+          }))
+        }
+      });
+      return;
+    }
+    
     // Check if this is a tool call request
     if (req.body.method === "tools/call") {
       const k8sClient = new KubernetesClient();

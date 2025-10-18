@@ -436,6 +436,23 @@ export class KubernetesClient {
     const username = process.env.JENKINS_USERNAME || "admin";
     const token = process.env.JENKINS_TOKEN || "11197fa40f409842983025803948aa6bcc";
     
+    // Get CSRF crumb first
+    let crumb = '';
+    try {
+      const crumbResponse = await fetch(`${jenkinsUrl}/crumbIssuer/api/json`, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`,
+        },
+      });
+      
+      if (crumbResponse.ok) {
+        const crumbData = await crumbResponse.json() as { crumb: string };
+        crumb = crumbData.crumb;
+      }
+    } catch (error) {
+      console.warn('Failed to get CSRF crumb, proceeding without it:', error);
+    }
+    
     // Build Jenkins API URL
     let buildUrl = `${jenkinsUrl}/job/${jobFullName}/build`;
     
@@ -448,12 +465,19 @@ export class KubernetesClient {
     }
     
     try {
+      const headers: Record<string, string> = {
+        'Authorization': `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+      
+      // Add CSRF crumb if available
+      if (crumb) {
+        headers['Jenkins-Crumb'] = crumb;
+      }
+      
       const response = await fetch(buildUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers,
       });
 
       if (!response.ok) {
