@@ -93,14 +93,14 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [dagHistory, setDAGHistory] = useState<any[]>([]);
   const [selectedRunID, setSelectedRunID] = useState<string>('current');
-  const [lastSavedRunID, setLastSavedRunID] = useState<string | null>(null); // Track last saved runID
+  // const [lastSavedRunID, setLastSavedRunID] = useState<string | null>(null); // Track last saved runID - CACHE DISABLED
   
   // Current namespace and workflow state
   const [currentNamespace, setCurrentNamespace] = useState(namespace);
   const [currentWorkflowName, setCurrentWorkflowName] = useState(workflowName);
   const [availableWorkflows, setAvailableWorkflows] = useState<string[]>([]);
   const [availableNamespaces, setAvailableNamespaces] = useState<string[]>([]);
-  const [_isStaleDAG, setIsStaleDAG] = useState(false); // Track if showing stale data
+  // const [_isStaleDAG, setIsStaleDAG] = useState(false); // Track if showing stale data - CACHE DISABLED
   
   // Task detail popup state
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -110,100 +110,118 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
   const fetchDAGRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null);
 
   // localStorage keys for caching current DAG and history
-  const cacheKey = `dag-cache-${currentNamespace}-${currentWorkflowName}`;
-  const historyKey = `dag-history-${currentNamespace}-${currentWorkflowName}`;
+  // const cacheKey = `dag-cache-${currentNamespace}-${currentWorkflowName}`;
+  // const historyKey = `dag-history-${currentNamespace}-${currentWorkflowName}`;
 
-  // Load cached DAG from localStorage on mount
-  const [lastValidDAG, setLastValidDAG] = useState<any>(() => {
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      console.log('[DAG] 🔍 Checking localStorage for cacheKey:', cacheKey);
-      console.log('[DAG] 🔍 Cached data exists:', !!cached);
-      if (cached) {
-        const parsedDAG = JSON.parse(cached);
-        console.log('[DAG] 📦 Loaded from localStorage:', {
-          nodes: parsedDAG.nodes?.length || 0,
-          runID: parsedDAG.runID,
-          timestamp: parsedDAG.timestamp,
-          workflowPhase: parsedDAG.workflowPhase
-        });
-        console.log('[DAG] 📦 Full cached DAG:', parsedDAG);
-        return parsedDAG;
-      } else {
-        console.log('[DAG] 📦 No cache found in localStorage for key:', cacheKey);
-        return null;
-      }
-    } catch (e) {
-      console.warn('[DAG] ❌ Failed to load from localStorage:', e);
-      return null;
-    }
-  });
+  // Load cached DAG from localStorage on mount - CACHE DISABLED
+  // const [lastValidDAG, setLastValidDAG] = useState<any>(() => {
+  //   // CACHE DISABLED - Always return null to force fresh data
+  //   console.log('[DAG] 🚫 Cache disabled - forcing fresh data');
+  //   return null;
+  //   
+  //   /* CACHE CODE COMMENTED OUT
+  //   try {
+  //     const cached = localStorage.getItem(cacheKey);
+  //     console.log('[DAG] 🔍 Checking localStorage for cacheKey:', cacheKey);
+  //     console.log('[DAG] 🔍 Cached data exists:', !!cached);
+  //     if (cached) {
+  //       const parsedDAG = JSON.parse(cached);
+  //       console.log('[DAG] 📦 Loaded from localStorage:', {
+  //         nodes: parsedDAG.nodes?.length || 0,
+  //         runID: parsedDAG.runID,
+  //         timestamp: parsedDAG.timestamp,
+  //         workflowPhase: parsedDAG.workflowPhase
+  //       });
+  //       console.log('[DAG] 📦 Full cached DAG:', parsedDAG);
+  //       return parsedDAG;
+  //     } else {
+  //       console.log('[DAG] 📦 No cache found in localStorage for key:', cacheKey);
+  //       return null;
+  //     }
+  //   } catch (e) {
+  //     console.warn('[DAG] ❌ Failed to load from localStorage:', e);
+  //     return null;
+  //   }
+  //   */
+  // });
 
-  // Load history from localStorage
-  const loadHistoryFromStorage = useCallback(() => {
-    try {
-      const stored = localStorage.getItem(historyKey);
-      if (stored) {
-        const history = JSON.parse(stored);
-        console.log('[DAG] 📚 Loaded history from localStorage:', history.length, 'items');
-        // Set last saved runID from the most recent history item
-        if (history.length > 0 && history[0].runID) {
-          setLastSavedRunID(history[0].runID);
-          console.log('[DAG] 🔖 Last saved runID:', history[0].runID);
-        }
-        return history;
-      }
-    } catch (e) {
-      console.error('[DAG] ❌ Error loading history:', e);
-    }
-    return [];
-  }, [historyKey]);
+  // Load history from localStorage - CACHE DISABLED
+  // const loadHistoryFromStorage = useCallback(() => {
+  //   // CACHE DISABLED - Always return empty array
+  //   console.log('[DAG] 🚫 History cache disabled - returning empty array');
+  //   return [];
+  //   
+  //   /* CACHE CODE COMMENTED OUT
+  //   try {
+  //     const stored = localStorage.getItem(historyKey);
+  //     if (stored) {
+  //       const history = JSON.parse(stored);
+  //       console.log('[DAG] 📚 Loaded history from localStorage:', history.length, 'items');
+  //       // Set last saved runID from the most recent history item
+  //       if (history.length > 0 && history[0].runID) {
+  //         setLastSavedRunID(history[0].runID);
+  //         console.log('[DAG] 🔖 Last saved runID:', history[0].runID);
+  //       }
+  //       return history;
+  //     }
+  //   } catch (e) {
+  //     console.error('[DAG] ❌ Error loading history:', e);
+  //   }
+  //   return [];
+  //   */
+  // }, []); // Removed historyKey dependency
 
-  // Save DAG to history (max 10 items)
-  const saveToHistory = useCallback((dag: any) => {
-    console.log('[DAG] 💾 saveToHistory called with:', {
-      hasDag: !!dag,
-      runID: dag?.runID,
-      nodesLength: dag?.nodes?.length,
-      timestamp: dag?.timestamp,
-      workflowPhase: dag?.workflowPhase
-    });
-    
-    if (!dag || !dag.runID || !dag.nodes || dag.nodes.length === 0) {
-      console.log('[DAG] 💾 Skipping save - invalid DAG data');
-      return;
-    }
+  // Save DAG to history (max 10 items) - CACHE DISABLED
+  // const saveToHistory = useCallback((dag: any) => {
+  //   // CACHE DISABLED - Skip saving to history
+  //   console.log('[DAG] 🚫 History cache disabled - skipping save');
+  //   return;
+  //   
+  //   /* CACHE CODE COMMENTED OUT
+  //   console.log('[DAG] 💾 saveToHistory called with:', {
+  //     hasDag: !!dag,
+  //     runID: dag?.runID,
+  //     nodesLength: dag?.nodes?.length,
+  //     timestamp: dag?.timestamp,
+  //     workflowPhase: dag?.workflowPhase
+  //   });
+  //   
+  //   if (!dag || !dag.runID || !dag.nodes || dag.nodes.length === 0) {
+  //     console.log('[DAG] 💾 Skipping save - invalid DAG data');
+  //     return;
+  //   }
 
-    try {
-      const history = loadHistoryFromStorage();
-      console.log('[DAG] 💾 Current history length:', history.length);
-      console.log('[DAG] 💾 Current history runIDs:', history.map((h: any) => h.runID));
-      
-      // Check if this runID already exists
-      const existingIndex = history.findIndex((item: any) => item.runID === dag.runID);
-      if (existingIndex >= 0) {
-        console.log('[DAG] 📚 RunID already in history:', dag.runID, 'at index:', existingIndex);
-        return;
-      }
+  //   try {
+  //     const history = loadHistoryFromStorage();
+  //     console.log('[DAG] 💾 Current history length:', history.length);
+  //     console.log('[DAG] 💾 Current history runIDs:', history.map((h: any) => h.runID));
+  //     
+  //     // Check if this runID already exists
+  //     const existingIndex = history.findIndex((item: any) => item.runID === dag.runID);
+  //     if (existingIndex >= 0) {
+  //       console.log('[DAG] 📚 RunID already in history:', dag.runID, 'at index:', existingIndex);
+  //       return;
+  //     }
 
-      // Add to beginning of history
-      const newHistory = [dag, ...history];
-      console.log('[DAG] 💾 New history will have length:', newHistory.length);
-      
-      // Keep only last 10 items
-      if (newHistory.length > 10) {
-        newHistory.splice(10);
-        console.log('[DAG] 💾 Trimmed history to 10 items');
-      }
+  //     // Add to beginning of history
+  //     const newHistory = [dag, ...history];
+  //     console.log('[DAG] 💾 New history will have length:', newHistory.length);
+  //     
+  //     // Keep only last 10 items
+  //     if (newHistory.length > 10) {
+  //       newHistory.splice(10);
+  //       console.log('[DAG] 💾 Trimmed history to 10 items');
+  //     }
 
-      localStorage.setItem(historyKey, JSON.stringify(newHistory));
-      setDAGHistory(newHistory);
-      console.log('[DAG] 💾 Saved to history:', dag.runID, '- Total items:', newHistory.length);
-      console.log('[DAG] 💾 New history runIDs:', newHistory.map((h: any) => h.runID));
-    } catch (e) {
-      console.error('[DAG] ❌ Error saving to history:', e);
-    }
-  }, [historyKey, loadHistoryFromStorage]);
+  //     localStorage.setItem(historyKey, JSON.stringify(newHistory));
+  //     setDAGHistory(newHistory);
+  //     console.log('[DAG] 💾 Saved to history:', dag.runID, '- Total items:', newHistory.length);
+  //     console.log('[DAG] 💾 New history runIDs:', newHistory.map((h: any) => h.runID));
+  //   } catch (e) {
+  //     console.error('[DAG] ❌ Error saving to history:', e);
+  //   }
+  //   */
+  // }, []); // Removed dependencies
 
   // Fetch available namespaces
   const fetchAvailableNamespaces = useCallback(async () => {
@@ -448,6 +466,16 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         // Update workflow info
         setWorkflow(data.workflow);
         
+        // CACHE DISABLED - Always use fresh data from API
+        console.log('[DAG] 🚫 Cache disabled - using fresh API data only');
+        const localHistory: any[] = []; // Empty history
+        setDAGHistory(localHistory);
+
+        // Always use fresh data from API
+        let displayDAG = data.dag;
+        let showingStale = false;
+
+        /* CACHE CODE COMMENTED OUT
         // Load history from localStorage
         const localHistory = loadHistoryFromStorage();
         setDAGHistory(localHistory);
@@ -493,6 +521,7 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
             console.log('[DAG] 🔄 Same runID as cache:', currentRunID);
           }
         }
+        */
 
         console.log('[DAG] 🔍 ========== fetchDAGInternal DAG Processing ==========');
         console.log('[DAG] 🔍 displayDAG:', displayDAG);
@@ -502,6 +531,11 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
         if (displayDAG && displayDAG.nodes && displayDAG.nodes.length > 0) {
           console.log('[DAG] 🔍 ✅ Valid DAG found, processing nodes...');
           console.log('[DAG] 🔍 Raw nodes data:', displayDAG.nodes);
+          
+          // CACHE DISABLED - Skip all caching operations
+          console.log('[DAG] 🚫 Cache disabled - skipping all cache operations');
+          
+          /* CACHE CODE COMMENTED OUT
           // Update cache
           setLastValidDAG(displayDAG);
           try {
@@ -549,12 +583,19 @@ export function WorkflowDAG({ namespace, workflowName }: WorkflowDAGProps) {
               setIsStaleDAG(true);
             }
           }
+          */
+        } else {
+          console.log('[DAG] ⚠️ No DAG to display (empty data)');
+        }
+        
+        /* CACHE CODE COMMENTED OUT
         } else if (showingStale) {
           console.log('[DAG] ⚠️ Showing stale DAG');
           setIsStaleDAG(true);
         } else {
           console.log('[DAG] ⚠️ No DAG to display (empty and no cache)');
         }
+        */
         
         setMetadata(displayDAG.metadata);
 
